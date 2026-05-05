@@ -1,0 +1,3070 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão Financeira</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Firebase Realtime Database (plano gratuito Spark) -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+    // ── Credenciais do projeto Firebase ───────────────────────────────────
+    const FIREBASE_CONFIG = {
+      apiKey:            "AIzaSyDs1cbRF_Gx2whROtMoBwHmm0chCtujyHc",
+      authDomain:        "monosup-financi.firebaseapp.com",
+      projectId:         "monosup-financi",
+      storageBucket:     "monosup-financi.firebasestorage.app",
+      messagingSenderId: "550065607574",
+      appId:             "1:550065607574:web:b6f38e996e445d1ee143b7",
+      // ── Cole aqui a URL do Realtime Database após criar no console ──────
+      // Exemplo: "https://monosup-financi-default-rtdb.firebaseio.com"
+      databaseURL:       "https://monosup-financi-default-rtdb.firebaseio.com",
+    };
+    // ─────────────────────────────────────────────────────────────────────
+
+    const DB_PATH = 'financi/dados2026';
+    const configured = FIREBASE_CONFIG.databaseURL !== 'COLE_A_URL_DO_REALTIME_DATABASE_AQUI';
+
+    let rtdb = null;
+    let _saveTimeout = null;
+    let _lastSaveVersion = null;
+    let _listening = false;
+
+    async function initFirebase() {
+      if (!configured) {
+        updateSyncStatus('local', 'Local — configure o Realtime Database');
+        return;
+      }
+      try {
+        updateSyncStatus('connecting', 'Conectando...');
+        const app = initializeApp(FIREBASE_CONFIG);
+        rtdb = getDatabase(app);
+
+        // ── Load initial data ────────────────────────────────────────────
+        const snap = await get(ref(rtdb, DB_PATH));
+        if (snap.exists()) {
+          const raw = snap.val();
+          if (raw && raw.payload) {
+            try {
+              window._DB_CLOUD = JSON.parse(raw.payload);
+              console.log('☁️ Dados carregados da nuvem');
+            } catch(e) { console.warn('parse error', e); }
+          }
+        }
+
+        // ── Real-time listener (sync from other devices) ─────────────────
+        if (!_listening) {
+          _listening = true;
+          onValue(ref(rtdb, DB_PATH), (snap) => {
+            if (!snap.exists()) return;
+            const raw = snap.val();
+            if (!raw || !raw.payload) return;
+            try {
+              const incoming = JSON.parse(raw.payload);
+              // Skip if this update was triggered by THIS device
+              if (_lastSaveVersion && incoming._v === _lastSaveVersion) return;
+              window._DB_CLOUD = incoming;
+              if (window._applyCloudDB) window._applyCloudDB(incoming);
+              updateSyncStatus('cloud', 'Nuvem ☁️ (sincronizado)');
+            } catch(e) { console.warn('sync parse error', e); }
+          });
+        }
+
+        updateSyncStatus('cloud', 'Nuvem ☁️ (Firebase)');
+      } catch(e) {
+        console.error('Firebase init error:', e.message);
+        updateSyncStatus('error', 'Erro — usando local. Veja console.');
+      } finally {
+        // Always resolve so load() can proceed
+        if (window._firebaseReadyResolve) window._firebaseReadyResolve();
+      }
+    }
+
+    // ── Save to Realtime Database (debounced 1s) ─────────────────────────
+    window._saveToFirestore = async function(dbData) {
+      if (!rtdb || !configured) return;
+      clearTimeout(_saveTimeout);
+      _saveTimeout = setTimeout(async () => {
+        try {
+          updateSyncStatus('saving', 'Salvando na nuvem...');
+          const v = Date.now().toString(36);
+          _lastSaveVersion = v;
+          dbData._v = v;
+          // Realtime DB stores flat values — we serialize as a string payload
+          await set(ref(rtdb, DB_PATH), {
+            payload: JSON.stringify(dbData),
+            savedAt: Date.now(),
+          });
+          updateSyncStatus('cloud', 'Nuvem ☁️ (Firebase)');
+        } catch(e) {
+          console.error('RTDB save error:', e.message);
+          updateSyncStatus('error', 'Erro ao salvar na nuvem');
+        }
+      }, 1000);
+    };
+
+    function updateSyncStatus(state, text) {
+      const el = document.getElementById('sync-status');
+      if (!el) return;
+      const colors = {
+        local:      'var(--text3)',
+        connecting: 'var(--amber)',
+        cloud:      'var(--accent)',
+        saving:     'var(--amber)',
+        error:      'var(--red)',
+      };
+      el.innerHTML = `<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="${colors[state]||'var(--text3)'}"/></svg> ${text}`;
+    }
+
+    window._applyCloudDB = null;
+
+    // Promise that resolves when Firebase finishes loading (or times out)
+    window._firebaseReady = new Promise((resolve) => {
+      window._firebaseReadyResolve = resolve;
+    });
+
+    async function initAndResolve() {
+      await initFirebase();
+      // Signal ready whether we got cloud data or not
+      if (window._firebaseReadyResolve) window._firebaseReadyResolve();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => initAndResolve());
+  </script>
+
+  <!-- Google Identity Services (for Drive OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --surface2: #f2f1ed;
+    --border: #e0ddd6;
+    --border2: #ccc9c0;
+    --text: #1a1917;
+    --text2: #6b6862;
+    --text3: #9b9790;
+    --accent: #1a6b4a;
+    --accent-light: #e8f5ef;
+    --accent2: #2563eb;
+    --accent2-light: #eff6ff;
+    --red: #c0392b;
+    --red-light: #fef2f0;
+    --amber: #b45309;
+    --amber-light: #fffbeb;
+    --purple: #6d28d9;
+    --purple-light: #f5f3ff;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .sidebar-brand {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-brand h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .sidebar-brand p {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  .sidebar-nav {
+    padding: 12px 8px;
+    flex: 1;
+  }
+
+  .nav-section {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 8px 12px 4px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 400;
+    transition: all 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+
+  .nav-icon { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
+  .nav-item.active .nav-icon { opacity: 1; }
+
+  .main { flex: 1; overflow-x: hidden; }
+
+  .page { display: none; padding: 32px; }
+  .page.active { display: block; }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.5px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 18px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: -0.5px;
+  }
+
+  .stat-value.green { color: var(--accent); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.blue { color: var(--accent2); }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .btn:hover { background: var(--surface2); border-color: var(--border2); }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  .btn-primary:hover { background: #155a3d; border-color: #155a3d; }
+
+  .btn-danger {
+    background: var(--red-light);
+    color: var(--red);
+    border-color: #f5c6c3;
+  }
+
+  .btn-danger:hover { background: #fce8e6; }
+
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  .btn-icon {
+    padding: 6px;
+    border-radius: var(--radius);
+  }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  tbody td {
+    padding: 10px 12px;
+    vertical-align: middle;
+  }
+
+  /* FORMS */
+  .form-row {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+  }
+
+  input[type="text"],
+  input[type="date"],
+  input[type="number"],
+  input[type="email"],
+  select,
+  textarea {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 8px 10px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(26,107,74,0.1);
+  }
+
+  textarea { resize: vertical; min-height: 72px; }
+
+  select { cursor: pointer; }
+
+  .file-input-wrapper {
+    position: relative;
+  }
+
+  .file-input-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px dashed var(--border2);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text2);
+    background: var(--surface2);
+    transition: all 0.15s;
+    width: 100%;
+  }
+
+  .file-input-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+  .file-input-btn input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+  }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .badge-green { background: var(--accent-light); color: var(--accent); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-blue { background: var(--accent2-light); color: var(--accent2); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-purple { background: var(--purple-light); color: var(--purple); }
+  .badge-gray { background: var(--surface2); color: var(--text2); }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+  }
+
+  .modal-title { font-size: 16px; font-weight: 600; }
+
+  .modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text3);
+    font-size: 20px;
+    padding: 2px 6px;
+    border-radius: var(--radius);
+    transition: all 0.15s;
+  }
+
+  .modal-close:hover { background: var(--surface2); color: var(--text); }
+
+  .modal-body { padding: 20px 24px; }
+
+  .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* MISC */
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .amount-positive { color: var(--accent); font-family: 'DM Mono', monospace; font-size: 13px; }
+  .amount-negative { color: var(--red); font-family: 'DM Mono', monospace; font-size: 13px; }
+  .amount-mono { font-family: 'DM Mono', monospace; font-size: 13px; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 11px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tag:hover { border-color: var(--accent); color: var(--accent); }
+  .tag.selected { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+  .tag.remove { cursor: default; }
+  .tag .remove-x { cursor: pointer; color: var(--text3); margin-left: 2px; }
+  .tag .remove-x:hover { color: var(--red); }
+
+  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    color: var(--text3);
+    text-align: center;
+    gap: 8px;
+  }
+
+  .empty-state svg { opacity: 0.3; margin-bottom: 8px; }
+  .empty-state p { font-size: 13px; }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+
+  .tab {
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--surface);
+    margin-bottom: 16px;
+  }
+
+  .search-bar input {
+    border: none;
+    background: none;
+    flex: 1;
+    font-size: 13px;
+    color: var(--text);
+    padding: 0;
+  }
+
+  .search-bar input:focus { outline: none; box-shadow: none; }
+  .search-bar svg { color: var(--text3); flex-shrink: 0; }
+
+  .nf-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--accent2);
+    text-decoration: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--accent2-light);
+  }
+
+  .nf-link:hover { text-decoration: underline; }
+
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+
+  .filter-row select {
+    width: auto;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s;
+  }
+
+  .project-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    transition: box-shadow 0.15s;
+    cursor: pointer;
+  }
+
+  .project-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+
+  .upload-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  @media (max-width: 768px) {
+    .sidebar { width: 60px; min-width: 60px; }
+    .sidebar-brand, .nav-section { display: none; }
+    .nav-item span { display: none; }
+    .nav-item { justify-content: center; padding: 10px; }
+    .page { padding: 16px; }
+    .form-row { grid-template-columns: 1fr !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-brand">
+    <h1>Financi</h1>
+    <p>Gestão Financeira</p>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section">Principal</div>
+    <button class="nav-item active" onclick="showPage('dashboard')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-item" onclick="showPage('lancamentos')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h8"/></svg>
+      <span>Lançamentos</span>
+    </button>
+    <button class="nav-item" onclick="showPage('projetos')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 13V6l6-4 6 4v7H2z"/><rect x="6" y="9" width="4" height="4"/></svg>
+      <span>Projetos</span>
+    </button>
+
+    <div class="nav-section" style="margin-top:12px">Configuração</div>
+    <button class="nav-item" onclick="showPage('categorias')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2H2v4h4V2zM14 2h-4v4h4V2zM6 10H2v4h4v-4zM14 10h-4v4h4v-4z"/></svg>
+      <span>Categorias</span>
+    </button>
+    <button class="nav-item" onclick="showPage('clientes')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6"/></svg>
+      <span>Clientes</span>
+    </button>
+    <button class="nav-item" onclick="showPage('fornecedores')"> 
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="9" rx="1.5"/><path d="M4 4V3a1 1 0 011-1h6a1 1 0 011 1v1"/><path d="M8 9V7m0 0l-2 1m2-1l2 1"/></svg>
+      <span>Fornecedores</span>
+    </button>
+    <button class="nav-item" onclick="showPage('impostos')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
+      <span>Impostos</span>
+    </button>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+<div id="topbar" style="background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:12px;color:var(--text3)">Dados:</span>
+    <span id="sync-status" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;">
+      <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="var(--text3)"/></svg>
+      Inicializando...
+    </span>
+    <span style="font-size:12px;color:var(--text3)">|</span>
+    <span style="font-size:12px;color:var(--text3)">Drive:</span>
+    <button id="drive-auth-btn" class="btn btn-sm" onclick="autenticarDrive()" style="font-size:11px;padding:4px 8px">
+      🔑 Conectar Google
+    </button>
+    <span id="drive-status" style="font-size:11px;color:var(--text3);display:none"></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <button class="btn btn-sm" onclick="openModal('modal-config')" title="Configurar Firebase e Google Drive" style="font-size:11px">
+      ⚙️ Config nuvem
+    </button>
+    <button class="btn btn-sm" onclick="importarJSON()" title="Importar backup JSON">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v9M4 7l4 4 4-4"/><path d="M2 13h12"/></svg>
+      Importar JSON
+    </button>
+    <button class="btn btn-sm" onclick="exportarCSV()" title="Exportar lançamentos em CSV">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><path d="M2 6h12M6 6v8"/></svg>
+      CSV
+    </button>
+    <button class="btn btn-sm btn-primary" onclick="exportarJSON()" title="Exportar todos os dados JSON">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 11V2M4 7l4-5 4 5"/><path d="M2 13h12"/></svg>
+      Exportar JSON
+    </button>
+    <input type="file" id="json-import-input" accept=".json" style="display:none" onchange="handleJSONImport(this)">
+  </div>
+</div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-sub">Visão geral financeira — 2026</div>
+      </div>
+      <button class="btn btn-primary" onclick="resetLancamentoModal();openModal('modal-lancamento')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Novo lançamento
+      </button>
+    </div>
+
+    <div class="stat-grid" id="dash-stats"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Gastos por categoria</div>
+        <div id="dash-categorias"></div>
+      </div>
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Projetos ativos</div>
+        <div id="dash-projetos"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Últimos lançamentos</div>
+      <div class="table-wrap">
+        <table>
+          <thead id="dash-recentes-head"></thead>
+          <tbody id="dash-recentes"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- LANÇAMENTOS -->
+  <div class="page" id="page-lancamentos">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Lançamentos</div>
+        <div class="page-sub">Todos os custos e receitas</div>
+      </div>
+      <button class="btn btn-primary" onclick="resetLancamentoModal();openModal('modal-lancamento')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Novo lançamento
+      </button>
+    </div>
+
+    <div class="filter-row">
+      <select id="filter-projeto" onchange="renderLancamentos()">
+        <option value="">Todos os projetos</option>
+      </select>
+      <select id="filter-categoria" onchange="renderLancamentos()">
+        <option value="">Todas as categorias</option>
+      </select>
+      <select id="filter-fornecedor" onchange="renderLancamentos()">
+        <option value="">Todos os fornecedores</option>
+      </select>
+      <select id="filter-tipo" onchange="renderLancamentos()">
+        <option value="">Todos os tipos</option>
+        <option value="custo">Custo</option>
+        <option value="receita">Receita</option>
+      </select>
+      <input type="text" id="filter-busca" placeholder="Buscar..." style="max-width:180px" oninput="renderLancamentos()">
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nº</th>
+              <th>Data</th>
+              <th>Descrição</th>
+              <th>Categoria</th>
+              <th>Projeto</th>
+              <th>Fornecedor</th>
+              <th>Origem</th>
+              <th>NF</th>
+              <th style="text-align:right">Valor</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-lancamentos"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROJETOS -->
+  <div class="page" id="page-projetos">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Projetos</div>
+        <div class="page-sub">Gerencie seus projetos e receitas</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('modal-projeto')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Novo projeto
+      </button>
+    </div>
+    <div id="grid-projetos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;"></div>
+  </div>
+
+  <!-- CATEGORIAS -->
+  <div class="page" id="page-categorias">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Categorias</div>
+        <div class="page-sub">Organize seus lançamentos</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('modal-categoria')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Nova categoria
+      </button>
+    </div>
+    <div class="card">
+      <div id="lista-categorias"></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div class="page" id="page-clientes">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Clientes</div>
+        <div class="page-sub">Base de clientes</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('modal-cliente')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Novo cliente
+      </button>
+    </div>
+    <div class="card">
+      <div id="lista-clientes"></div>
+    </div>
+  </div>
+
+  <!-- IMPOSTOS -->
+  <div class="page" id="page-impostos">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Impostos</div>
+        <div class="page-sub">Tipos de imposto disponíveis</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('modal-imposto')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Novo imposto
+      </button>
+    </div>
+    <div class="card">
+      <div id="lista-impostos"></div>
+    </div>
+  </div>
+
+  <!-- FORNECEDORES -->
+  <div class="page" id="page-fornecedores">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Fornecedores</div>
+        <div class="page-sub">Empresas e pessoas que você paga</div>
+      </div>
+      <button class="btn btn-primary" onclick="resetFornecedorModal();document.getElementById('modal-fornecedor').classList.add('open')">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+        Novo fornecedor
+      </button>
+    </div>
+    <div class="card">
+      <div id="lista-fornecedores"></div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- ==================== CONFIG MODAL ==================== -->
+<div class="modal-overlay" id="modal-config">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ Configuração de Nuvem</div>
+      <button class="modal-close" onclick="closeModal('modal-config')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--accent-light);border:1px solid #a7d9be;border-radius:var(--radius);padding:14px;margin-bottom:20px;font-size:13px">
+        <strong>Como configurar:</strong> edite o arquivo HTML e substitua os valores placeholder nas constantes <code>FIREBASE_CONFIG</code> e <code>GOOGLE_CLIENT_ID</code>. Veja o guia abaixo.
+      </div>
+
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px">🔥 Firebase Realtime Database (sync gratuito entre máquinas)</div>
+      <ol style="font-size:12px;color:var(--text2);line-height:2;padding-left:18px;margin-bottom:16px">
+        <li>Acesse <a href="https://console.firebase.google.com/project/monosup-financi" target="_blank" style="color:var(--accent2)">console.firebase.google.com</a> → projeto <strong>monosup-financi</strong></li>
+        <li>No menu esquerdo: <strong>Build → Realtime Database</strong></li>
+        <li>Clique <strong>"Criar banco de dados"</strong> → região <em>United States</em> → <strong>"Iniciar no modo de teste"</strong> → Ativar</li>
+        <li>Copie a URL que aparece (ex: <code>https://monosup-financi-default-rtdb.firebaseio.com</code>)</li>
+        <li>Cole a URL na constante <code>databaseURL</code> dentro do <code>&lt;script type="module"&gt;</code> no &lt;head&gt; do HTML</li>
+      </ol>
+      <div style="background:var(--accent-light);border:1px solid #a7d9be;border-radius:var(--radius);padding:10px 14px;font-size:12px;margin-bottom:16px">
+        ✅ O Realtime Database é 100% gratuito no plano Spark — sem necessidade de cartão de crédito.
+      </div>
+
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px">📁 Google Drive (upload de NFs)</div>
+      <ol style="font-size:12px;color:var(--text2);line-height:2;padding-left:18px;margin-bottom:0">
+        <li>Acesse <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent2)">console.cloud.google.com</a></li>
+        <li>Crie ou selecione um projeto → <strong>APIs & Services → Enable APIs</strong> → ative <em>Google Drive API</em></li>
+        <li>Em <strong>Credentials → Create Credentials → OAuth 2.0 Client ID</strong></li>
+        <li>Tipo: <strong>Web application</strong></li>
+        <li>Em <strong>Authorized JavaScript origins</strong> adicione a URL onde o HTML está hospedado<br>
+          <span style="font-size:11px;color:var(--text3)">(ex: <code>file://</code> não funciona — hospede em localhost ou servidor)</span></li>
+        <li>Copie o Client ID e cole na constante <code>GOOGLE_CLIENT_ID</code> no script principal</li>
+        <li>Clique em <strong>"🔑 Conectar Google"</strong> no topo da ferramenta antes de anexar NFs</li>
+      </ol>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeModal('modal-config')">Entendi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- MODAL LANÇAMENTO -->
+<div class="modal-overlay" id="modal-lancamento">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-lanc-title">Novo lançamento</div>
+      <button class="modal-close" onclick="closeModal('modal-lancamento')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="lanc-id">
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Data *</label>
+          <input type="date" id="lanc-data">
+        </div>
+        <div class="form-group">
+          <label>Tipo *</label>
+          <select id="lanc-tipo">
+            <option value="custo">Custo</option>
+            <option value="receita">Receita</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Descrição *</label>
+          <input type="text" id="lanc-descricao" placeholder="Ex: Assinatura Adobe Creative Cloud">
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Valor (R$) *</label>
+          <input type="number" id="lanc-valor" step="0.01" min="0" placeholder="0,00">
+        </div>
+        <div class="form-group">
+          <label>Categoria</label>
+          <select id="lanc-categoria">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Projeto</label>
+          <select id="lanc-projeto">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fornecedor</label>
+          <select id="lanc-fornecedor">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Origem</label>
+          <select id="lanc-origem">
+            <option value="extrato">Extrato bancário</option>
+            <option value="cartao">Cartão de crédito</option>
+            <option value="manual">Lançamento manual</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="visibility:hidden">.</label>
+          <button type="button" class="btn btn-sm" style="margin-top:2px" onclick="resetFornecedorModal();_lancModalOpen=true;document.getElementById('modal-fornecedor').classList.add('open')">+ Novo fornecedor</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nota fiscal (NF)</label>
+          <div class="file-input-wrapper">
+            <label class="file-input-btn" id="nf-label">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l4 4v8H4V2z"/><path d="M9 2v4h4"/></svg>
+              <span id="nf-filename">Anexar NF (PDF, imagem)</span>
+              <input type="file" id="lanc-nf" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="handleNFSelect(this)">
+            </label>
+          </div>
+          <div id="nf-upload-status" style="display:none" class="upload-status">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="var(--accent)"><circle cx="8" cy="8" r="7"/><path d="M5 8l2 2 4-4" stroke="white" stroke-width="1.5" fill="none"/></svg>
+            <span id="nf-status-text"></span>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Observação</label>
+          <textarea id="lanc-obs" placeholder="Notas adicionais..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-lancamento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarLancamento()">Salvar lançamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PROJETO -->
+<div class="modal-overlay" id="modal-projeto">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-proj-title">Novo projeto</div>
+      <button class="modal-close" onclick="closeModal('modal-projeto')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="proj-id">
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Nome do projeto *</label>
+          <input type="text" id="proj-nome" placeholder="Ex: Campanha Verão 2026">
+        </div>
+        <div class="form-group">
+          <label>Cliente</label>
+          <select id="proj-cliente">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Receita total (R$)</label>
+          <input type="number" id="proj-receita" step="0.01" min="0" placeholder="0,00">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="proj-status">
+            <option value="ativo">Ativo</option>
+            <option value="pausado">Pausado</option>
+            <option value="concluido">Concluído</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Data início</label>
+          <input type="date" id="proj-inicio">
+        </div>
+        <div class="form-group">
+          <label>Data término</label>
+          <input type="date" id="proj-termino">
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Categorias do projeto</div>
+      <div id="proj-categorias-tags" class="tag-list" style="margin-bottom:12px"></div>
+      <div class="divider"></div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Imposto aplicado</div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr">
+        <div class="form-group">
+          <label>Tipo de imposto</label>
+          <select id="proj-imposto">
+            <option value="">Nenhum</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>% adicional (override)</label>
+          <input type="number" id="proj-imposto-pct" step="0.1" min="0" max="100" placeholder="Usa % padrão">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Descrição / Observações</label>
+          <textarea id="proj-obs" placeholder="Escopo, detalhes..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-projeto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarProjeto()">Salvar projeto</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CATEGORIA -->
+<div class="modal-overlay" id="modal-categoria">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">Nova categoria</div>
+      <button class="modal-close" onclick="closeModal('modal-categoria')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cat-id">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Nome *</label>
+        <input type="text" id="cat-nome" placeholder="Ex: Marketing, Infraestrutura...">
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Cor</label>
+        <select id="cat-cor">
+          <option value="green">Verde</option>
+          <option value="blue">Azul</option>
+          <option value="amber">Âmbar</option>
+          <option value="red">Vermelho</option>
+          <option value="purple">Roxo</option>
+          <option value="gray">Cinza</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-categoria')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCategoria()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CLIENTE -->
+<div class="modal-overlay" id="modal-cliente">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Novo cliente</div>
+      <button class="modal-close" onclick="closeModal('modal-cliente')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cli-id">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Nome *</label>
+        <input type="text" id="cli-nome" placeholder="Nome do cliente ou empresa">
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>E-mail</label>
+        <input type="email" id="cli-email" placeholder="email@exemplo.com">
+      </div>
+      <div class="form-group">
+        <label>CNPJ / CPF</label>
+        <input type="text" id="cli-doc" placeholder="00.000.000/0001-00">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCliente()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPOSTO -->
+<div class="modal-overlay" id="modal-imposto">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">Novo imposto</div>
+      <button class="modal-close" onclick="closeModal('modal-imposto')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="imp-id">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Nome *</label>
+        <input type="text" id="imp-nome" placeholder="Ex: ISS, Simples Nacional...">
+      </div>
+      <div class="form-group">
+        <label>Alíquota padrão (%)</label>
+        <input type="number" id="imp-pct" step="0.01" min="0" max="100" placeholder="0,00">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-imposto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarImposto()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FORNECEDOR -->
+<div class="modal-overlay" id="modal-fornecedor">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-forn-title">Novo fornecedor</div>
+      <button class="modal-close" onclick="closeFornecedorModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="forn-id">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Nome *</label>
+        <input type="text" id="forn-nome" placeholder="Ex: Meta Ads, Freelancer João...">
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>CNPJ / CPF</label>
+        <input type="text" id="forn-doc" placeholder="00.000.000/0001-00">
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Categoria padrão</label>
+        <select id="forn-categoria">
+          <option value="">— Selecione —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Observação</label>
+        <textarea id="forn-obs" placeholder="Notas..." style="min-height:56px"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeFornecedorModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarFornecedor()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALHE PROJETO -->
+<div class="modal-overlay" id="modal-proj-detalhe">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div class="modal-title" id="proj-det-titulo"></div>
+      <button class="modal-close" onclick="closeModal('modal-proj-detalhe')">×</button>
+    </div>
+    <div class="modal-body" id="proj-det-body"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-proj-detalhe')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== DATA STORE ====================
+
+const DB_DEFAULT = {
+  categorias: [
+    { id: 'c1', nome: 'Marketing', cor: 'blue' },
+    { id: 'c2', nome: 'Infraestrutura', cor: 'green' },
+    { id: 'c3', nome: 'Pessoal', cor: 'purple' },
+    { id: 'c4', nome: 'Operacional', cor: 'amber' },
+    { id: 'c5', nome: 'Impostos', cor: 'red' },
+  ],
+  clientes: [
+    { id: 'cl1', nome: 'Empresa ABC Ltda', email: 'contato@abc.com.br', doc: '12.345.678/0001-90' },
+    { id: 'cl2', nome: 'Joao da Silva', email: 'joao@email.com', doc: '123.456.789-00' },
+  ],
+  impostos: [
+    { id: 'i1', nome: 'ISS', pct: 5 },
+    { id: 'i2', nome: 'Simples Nacional', pct: 6 },
+    { id: 'i3', nome: 'PIS/COFINS', pct: 3.65 },
+  ],
+  projetos: [
+    { id: 'p1', nome: 'Campanha Digital Q1', cliente: 'cl1', receita: 15000, status: 'ativo', inicio: '2026-01-01', termino: '2026-03-31', categorias: ['c1','c2'], impostoId: 'i1', impostoPct: null, obs: '' },
+    { id: 'p2', nome: 'Consultoria Financeira', cliente: 'cl2', receita: 8500, status: 'ativo', inicio: '2026-02-01', termino: '2026-06-30', categorias: ['c3','c4'], impostoId: 'i2', impostoPct: null, obs: '' },
+  ],
+  fornecedores: [
+    { id: 'ef001', nome: 'Sul América Companhia de Seguro Saúde', doc: '01.685.053/0001-56', categoria: '', obs: '' },
+    { id: 'ef002', nome: 'Receita Federal', doc: '00.394.460/0058-87', categoria: '', obs: '' },
+    { id: 'ef003', nome: 'CEF Matriz', doc: '00.360.305/0001-04', categoria: '', obs: '' },
+    { id: 'ef004', nome: 'Nakalu', doc: '08.727.932/0001-42', categoria: '', obs: '' },
+    { id: 'ef005', nome: 'Lalamove Tecnologia', doc: '34.538.625/0001-23', categoria: '', obs: '' },
+    { id: 'ef006', nome: 'Matheus de Moraes Franciscon', doc: '', categoria: '', obs: '' },
+    { id: 'ef007', nome: 'Renan Garcia de Sousa Santos', doc: '', categoria: '', obs: '' },
+    { id: 'ef008', nome: 'Nova Era', doc: '28.256.506/0001-85', categoria: '', obs: '' },
+    { id: 'ef009', nome: 'Gráfica WSM', doc: '21.845.780/0001-40', categoria: '', obs: '' },
+    { id: 'ef010', nome: 'Banco Topázio / Ebanx', doc: '07.679.404/0001-00', categoria: '', obs: '' },
+    { id: 'ef011', nome: 'Paghiper IP', doc: '20.110.153/0001-07', categoria: '', obs: '' },
+    { id: 'ef012', nome: 'Maximus Impressão Digital', doc: '24.126.967/0001-82', categoria: '', obs: '' },
+    { id: 'ef013', nome: 'Flash App', doc: '32.223.020/0001-18', categoria: '', obs: '' },
+    { id: 'ef014', nome: 'Priscilla Ariela de Assis Faria', doc: '', categoria: '', obs: '' },
+    { id: 'ef015', nome: 'Arthur Gomes Gonzaga da Silva', doc: '', categoria: '', obs: '' },
+    { id: 'ef016', nome: 'Ana Caroline Bornhofen', doc: '', categoria: '', obs: '' },
+    { id: 'ef017', nome: 'Tomás Jordão Macul', doc: '', categoria: '', obs: '' },
+    { id: 'ef018', nome: 'Vindi Pagamentos Online', doc: '14.338.304/0001-78', categoria: '', obs: '' },
+    { id: 'ef019', nome: 'Nicolas Emerenciano', doc: '31.531.868/0001-41', categoria: '', obs: '' },
+    { id: 'ef020', nome: 'Fire', doc: '46.072.917/0001-00', categoria: '', obs: '' },
+    { id: 'ef021', nome: 'Nailton Conceição Lima Junior', doc: '53.332.913/0001-71', categoria: '', obs: '' },
+    { id: 'ef022', nome: 'Safe2Pay', doc: '31.037.942/0001-78', categoria: '', obs: '' },
+    { id: 'ef023', nome: 'Bruno Ricci Borini Artero', doc: '', categoria: '', obs: '' },
+    { id: 'ef024', nome: 'Company Hero Ltda', doc: '20.240.272/0001-76', categoria: '', obs: '' },
+    { id: 'ef025', nome: 'Andrew Melo Lima', doc: '44.741.592/0001-78', categoria: '', obs: '' },
+    { id: 'ef026', nome: 'Pagamento Fatura Cartão', doc: '', categoria: '', obs: '' },
+    { id: 'ef027', nome: 'Nerd Stickers', doc: '22.502.695/0001-42', categoria: '', obs: '' },
+    { id: 'ef028', nome: 'SeG Locadora de Veículos', doc: '59.087.506/0001-22', categoria: '', obs: '' },
+    { id: 'ef029', nome: 'Plastix Personalizados', doc: '39.600.777/0001-22', categoria: '', obs: '' },
+    { id: 'ef030', nome: 'Promo-Infláveis', doc: '03.182.429/0001-35', categoria: '', obs: '' },
+    { id: 'ef031', nome: 'Sidnei Balbino da Silva', doc: '', categoria: '', obs: '' },
+    { id: 'ef032', nome: 'Gabriel Almeida de Souza', doc: '64.395.548/0001-60', categoria: '', obs: '' },
+    { id: 'ef033', nome: 'Leandro de Souza Mattos', doc: '30.601.829/0001-00', categoria: '', obs: '' },
+    { id: 'ef034', nome: 'Magui Locação', doc: '14.334.012/0001-67', categoria: '', obs: '' },
+    { id: 'ef035', nome: 'Anholeto Premiações Corporativas', doc: '07.104.387/0001-75', categoria: '', obs: '' },
+    { id: 'ef036', nome: 'Max Tours Viagens e Turismo', doc: '19.457.304/0001-00', categoria: '', obs: '' },
+    { id: 'ef037', nome: 'Luciano Florencio Barbosa', doc: '', categoria: '', obs: '' },
+    { id: 'ef038', nome: 'Marcus Vinicius Viana Infante', doc: '', categoria: '', obs: '' },
+    { id: 'ef039', nome: 'Helielson Luiz Nascimento', doc: '55.614.717/0001-15', categoria: '', obs: '' },
+    { id: 'ef040', nome: 'Gustavo Monteiro de Arruda', doc: '', categoria: '', obs: '' },
+    { id: 'ef041', nome: 'Shark Brindes', doc: '35.688.245/0001-38', categoria: '', obs: '' },
+    { id: 'ef042', nome: 'Aluguejasp Ltda', doc: '60.891.626/0001-67', categoria: '', obs: '' },
+    { id: 'ef043', nome: 'Vitor Del Bosque Lima', doc: '', categoria: '', obs: '' },
+    { id: 'ef044', nome: 'Sharkitutes', doc: '42.803.404/0001-63', categoria: '', obs: '' },
+    { id: 'ef045', nome: 'Agilize Tecnologia Ltda', doc: '17.187.385/0001-40', categoria: '', obs: '' },
+    { id: 'ef046', nome: 'Jean Thiago Morais Santos', doc: '48.289.716/0001-87', categoria: '', obs: '' },
+    { id: 'ef047', nome: 'Lucas Guilherme de Souza Bezerra', doc: '43.429.501/0001-09', categoria: '', obs: '' },
+    { id: 'ef048', nome: 'Magalupay', doc: '13.884.775/0001-19', categoria: '', obs: '' },
+    { id: 'ef049', nome: 'Vina Eventos', doc: '39.459.812/0001-35', categoria: '', obs: '' },
+    { id: 'ef050', nome: 'Guilherme Henrique Queiroz Martins', doc: '65.784.512/0001-31', categoria: '', obs: '' },
+    { id: 'ef051', nome: 'Fervo Tournament', doc: '63.198.590/0001-29', categoria: '', obs: '' },
+    { id: 'ef052', nome: 'Caio dos Santos Nascimento', doc: '63.023.517/0001-16', categoria: '', obs: '' },
+    { id: 'ef053', nome: 'Luis Fernando Toriello dos Santos', doc: '64.644.327/0001-89', categoria: '', obs: '' },
+    { id: 'ef054', nome: 'IATA International Air Transport Association', doc: '33.291.022/0001-07', categoria: '', obs: '' },
+    { id: 'ef055', nome: 'Dlocal Brasil', doc: '25.021.356/0001-32', categoria: '', obs: '' },
+    { id: 'ef056', nome: 'Airbnb Plataforma Digital', doc: '36.297.602/0001-08', categoria: '', obs: '' },
+    { id: 'ef057', nome: 'Minerio Digital Filmes', doc: '25.230.670/0001-25', categoria: '', obs: '' },
+    { id: 'ef058', nome: 'Katsu Produções', doc: '44.210.381/0001-09', categoria: '', obs: '' },
+    { id: 'ef059', nome: 'Pedro Henrique Bueno dos Santos', doc: '', categoria: '', obs: '' },
+    { id: 'ef060', nome: 'Pedro Douglas Alves Braga', doc: '', categoria: '', obs: '' },
+    { id: 'ef061', nome: 'Joao Pedro Costa Malta', doc: '', categoria: '', obs: '' },
+    { id: 'ef062', nome: 'Woodstock', doc: '32.507.575/0001-91', categoria: '', obs: '' },
+    { id: 'ef063', nome: 'Giovane Lurezonski Nogueira', doc: '20.250.135/0001-12', categoria: '', obs: '' },
+    { id: 'ef064', nome: 'CSJ Cursos e Serviços Digitais', doc: '30.435.409/0001-00', categoria: '', obs: '' },
+    { id: 'ef065', nome: 'Gilson Alves Moreira Junior', doc: '43.262.050/0001-50', categoria: '', obs: '' },
+    { id: 'ef066', nome: 'Uriel Jadi Spada Brito', doc: '', categoria: '', obs: '' },
+    { id: 'ef067', nome: 'Remessa Online Bee Tech', doc: '24.765.993/0001-50', categoria: '', obs: '' },
+    { id: 'ef068', nome: 'Banco Topázio', doc: '07.679.404/0001-00', categoria: '', obs: '' },
+    { id: 'ef069', nome: 'Schneider Rodrigues da Silva Nascimento Santana', doc: '51.561.097/0001-42', categoria: '', obs: '' },
+    { id: 'ef070', nome: 'Lucas Moura Pelusi', doc: '32.817.613/0001-02', categoria: '', obs: '' },
+    { id: 'ef071', nome: 'DG Sports', doc: '26.356.096/0001-19', categoria: '', obs: '' },
+    { id: 'ef072', nome: 'Rosgolim Presentes', doc: '01.850.644/0001-31', categoria: '', obs: '' },
+    { id: 'ef073', nome: 'Euno Consultoria', doc: '61.879.895/0001-70', categoria: '', obs: '' },
+    { id: 'ef074', nome: 'Prefeitura Municipal de São Paulo', doc: '', categoria: '', obs: '' },
+    { id: 'ef075', nome: 'Bhonnie Ateliê Esmalte e Pedras', doc: '05.209.894/0001-48', categoria: '', obs: '' },
+    { id: 'ef076', nome: 'Joao Pedro de Paula Mora', doc: '', categoria: '', obs: '' },
+    { id: 'ef077', nome: 'Gabriel Romão Franco de Oliveira', doc: '', categoria: '', obs: '' },
+    { id: 'ef078', nome: 'Wesley Barbosa da Silva', doc: '', categoria: '', obs: '' },
+    { id: 'ef079', nome: 'Vitor Fabrício dos Santos Sereno', doc: '', categoria: '', obs: '' },
+    { id: 'ef080', nome: 'Thayllan de Souza Azeredo', doc: '', categoria: '', obs: '' },
+    { id: 'ef081', nome: 'Samuel Feliciano Felipe da Silva', doc: '', categoria: '', obs: '' },
+    { id: 'ef082', nome: 'Willian Moura Araujo', doc: '', categoria: '', obs: '' },
+    { id: 'ef083', nome: 'Gustavo Lucas Vieira Pimentel', doc: '', categoria: '', obs: '' },
+    { id: 'ef084', nome: 'Ronaldo Portugal Pinto', doc: '', categoria: '', obs: '' },
+    { id: 'ef085', nome: 'Willian Lima dos Santos', doc: '', categoria: '', obs: '' },
+    { id: 'ef086', nome: 'Sergio Antonio Costa Villa', doc: '', categoria: '', obs: '' },
+    { id: 'ef087', nome: 'Ecocopos Indústria e Comércio de Brindes', doc: '36.159.269/0001-62', categoria: '', obs: '' },
+    { id: 'ef088', nome: 'Booking.com Brasil', doc: '10.625.931/0001-39', categoria: '', obs: '' },
+    { id: 'ef089', nome: 'CIA das Ideias', doc: '34.583.361/0001-20', categoria: '', obs: '' },
+    { id: 'ef090', nome: 'Gabriel Macario Lopes', doc: '', categoria: '', obs: '' },
+    { id: 'ef091', nome: 'VR Benefícios e Serviços de Processamento', doc: '02.535.864/0001-33', categoria: '', obs: '' },
+    { id: 'ef092', nome: 'Brunno Felippe Colosimo', doc: '', categoria: '', obs: '' },
+    { id: 'ef093', nome: 'Copyset Digital Ltda', doc: '57.510.739/0001-60', categoria: '', obs: '' },
+    { id: 'ef094', nome: 'Sertha', doc: '74.645.169/0001-35', categoria: '', obs: '' },
+    { id: 'ef095', nome: 'Toyoinfláveis', doc: '05.558.248/0001-96', categoria: '', obs: '' },
+    { id: 'ef096', nome: 'Uber do Brasil Tecnologia', doc: '17.895.646/0001-87', categoria: '', obs: '' },
+    { id: 'ef097', nome: 'Leonardo Oliveira Alves de Lima', doc: '55.168.210/0001-85', categoria: '', obs: '' },
+    { id: 'ef098', nome: 'Pedro Henrique Estanislau Reis Pereira', doc: '', categoria: '', obs: '' },
+    { id: 'ef099', nome: 'Alex Kaue Cordeiro', doc: '', categoria: '', obs: '' },
+    { id: 'ef100', nome: 'Andreas Pedro Menezes Andrade', doc: '', categoria: '', obs: '' },
+    { id: 'ef101', nome: 'Matheus de Lima Guedes', doc: '', categoria: '', obs: '' },
+    { id: 'ef102', nome: 'Guilherme Coelho Martins', doc: '', categoria: '', obs: '' },
+    { id: 'ef103', nome: 'Matheus Felipe Cruz Braz', doc: '', categoria: '', obs: '' },
+  ],
+  lancamentos: [
+    { id: 'l1', data: '2026-01-05', tipo: 'custo', descricao: 'Google Ads Janeiro', valor: 1200, categoria: 'c1', projeto: 'p1', fornecedor: 'ef001', origem: 'cartao', nf: null, obs: '', transferNum: '2026001' },
+    { id: 'l2', data: '2026-01-08', tipo: 'custo', descricao: 'Servidor AWS', valor: 450, categoria: 'c2', projeto: 'p1', fornecedor: '', origem: 'extrato', nf: null, obs: '', transferNum: '2026002' },
+    { id: 'l3', data: '2026-01-15', tipo: 'custo', descricao: 'Freelancer Design', valor: 2000, categoria: 'c3', projeto: 'p1', fornecedor: '', origem: 'extrato', nf: null, obs: '', transferNum: '2026003' },
+    { id: 'l4', data: '2026-02-03', tipo: 'custo', descricao: 'Ferramentas SaaS', valor: 320, categoria: 'c2', projeto: 'p2', fornecedor: '', origem: 'cartao', nf: null, obs: '', transferNum: '2026004' },
+    { id: 'l5', data: '2026-02-10', tipo: 'receita', descricao: 'Honorários Fev', valor: 4000, categoria: 'c3', projeto: 'p2', fornecedor: '', origem: 'extrato', nf: null, obs: '', transferNum: '2026005' },
+    { id: 'el001', data: '2026-01-05', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 3578.23, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026006', nf: null },
+    { id: 'el002', data: '2026-01-05', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 2235.07, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026007', nf: null },
+    { id: 'el003', data: '2026-01-06', tipo: 'custo', descricao: 'Transferência - Caixa Econômica Federal', valor: 1486.78, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026008', nf: null },
+    { id: 'el004', data: '2026-01-06', tipo: 'custo', descricao: 'Nakalu', valor: 1872.0, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026009', nf: null },
+    { id: 'el005', data: '2026-01-09', tipo: 'custo', descricao: 'Lalamove - Logística', valor: 50.0, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026010', nf: null },
+    { id: 'el006', data: '2026-01-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 475.6, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026011', nf: null },
+    { id: 'el007', data: '2026-01-09', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos - Freelancer', valor: 475.6, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026012', nf: null },
+    { id: 'el008', data: '2026-01-13', tipo: 'custo', descricao: 'Nova Era - Fornecimento', valor: 946.8, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026013', nf: null },
+    { id: 'el009', data: '2026-01-13', tipo: 'custo', descricao: 'Gráfica WSM', valor: 4420.0, categoria: '', projeto: '', fornecedor: 'ef009', origem: 'extrato', obs: '', transferNum: '2026014', nf: null },
+    { id: 'el010', data: '2026-01-14', tipo: 'custo', descricao: 'Banco Topázio - Pagamento', valor: 1737.26, categoria: '', projeto: '', fornecedor: 'ef010', origem: 'extrato', obs: '', transferNum: '2026015', nf: null },
+    { id: 'el011', data: '2026-01-14', tipo: 'custo', descricao: 'Paghiper - Pagamento', valor: 728.46, categoria: '', projeto: '', fornecedor: 'ef011', origem: 'extrato', obs: '', transferNum: '2026016', nf: null },
+    { id: 'el012', data: '2026-01-15', tipo: 'custo', descricao: 'Maximus Impressão Digital', valor: 37.5, categoria: '', projeto: '', fornecedor: 'ef012', origem: 'extrato', obs: '', transferNum: '2026017', nf: null },
+    { id: 'el013', data: '2026-01-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 917.99, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026018', nf: null },
+    { id: 'el014', data: '2026-01-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 1808.27, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026019', nf: null },
+    { id: 'el015', data: '2026-01-20', tipo: 'custo', descricao: 'DARF - Receita Federal (2)', valor: 16521.94, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026020', nf: null },
+    { id: 'el016', data: '2026-01-20', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026021', nf: null },
+    { id: 'el017', data: '2026-01-21', tipo: 'custo', descricao: 'Maximus Impressão Digital', valor: 37.5, categoria: '', projeto: '', fornecedor: 'ef012', origem: 'extrato', obs: '', transferNum: '2026022', nf: null },
+    { id: 'el018', data: '2026-01-23', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026023', nf: null },
+    { id: 'el019', data: '2026-01-23', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026024', nf: null },
+    { id: 'el020', data: '2026-01-23', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026025', nf: null },
+    { id: 'el021', data: '2026-01-23', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026026', nf: null },
+    { id: 'el022', data: '2026-01-26', tipo: 'custo', descricao: 'Vindi Pagamentos Online - Taxa', valor: 13.57, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026027', nf: null },
+    { id: 'el023', data: '2026-01-27', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3500.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026028', nf: null },
+    { id: 'el024', data: '2026-01-28', tipo: 'custo', descricao: 'Fire - Serviço', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef020', origem: 'extrato', obs: '', transferNum: '2026029', nf: null },
+    { id: 'el025', data: '2026-01-28', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 180.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026030', nf: null },
+    { id: 'el026', data: '2026-01-28', tipo: 'custo', descricao: 'Safe2Pay - Pagamento', valor: 180.0, categoria: '', projeto: '', fornecedor: 'ef022', origem: 'extrato', obs: '', transferNum: '2026031', nf: null },
+    { id: 'el027', data: '2026-01-30', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 1066.66, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026032', nf: null },
+    { id: 'el028', data: '2026-02-02', tipo: 'custo', descricao: 'Bruno Ricci Borini Artero - Freelancer', valor: 1600.0, categoria: '', projeto: '', fornecedor: 'ef023', origem: 'extrato', obs: '', transferNum: '2026033', nf: null },
+    { id: 'el029', data: '2026-02-03', tipo: 'custo', descricao: 'Company Hero - RH/Benefícios', valor: 845.46, categoria: '', projeto: '', fornecedor: 'ef024', origem: 'extrato', obs: '', transferNum: '2026034', nf: null },
+    { id: 'el030', data: '2026-02-04', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 967.74, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026035', nf: null },
+    { id: 'el031', data: '2026-02-04', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 3653.36, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026036', nf: null },
+    { id: 'el032', data: '2026-02-06', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 5187.25, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026037', nf: null },
+    { id: 'el033', data: '2026-02-10', tipo: 'custo', descricao: 'Nerd Stickers - Brindes', valor: 148.5, categoria: '', projeto: '', fornecedor: 'ef027', origem: 'extrato', obs: '', transferNum: '2026038', nf: null },
+    { id: 'el034', data: '2026-02-10', tipo: 'custo', descricao: 'Nakalu - Serviço', valor: 259.2, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026039', nf: null },
+    { id: 'el035', data: '2026-02-12', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026040', nf: null },
+    { id: 'el036', data: '2026-02-18', tipo: 'custo', descricao: 'SeG Locadora de Veículos (1)', valor: 38.8, categoria: '', projeto: '', fornecedor: 'ef028', origem: 'extrato', obs: '', transferNum: '2026041', nf: null },
+    { id: 'el037', data: '2026-02-18', tipo: 'custo', descricao: 'SeG Locadora de Veículos (2)', valor: 31.15, categoria: '', projeto: '', fornecedor: 'ef028', origem: 'extrato', obs: '', transferNum: '2026042', nf: null },
+    { id: 'el038', data: '2026-02-19', tipo: 'custo', descricao: 'Plastix Personalizados - Brindes', valor: 7500.0, categoria: '', projeto: '', fornecedor: 'ef029', origem: 'extrato', obs: '', transferNum: '2026043', nf: null },
+    { id: 'el039', data: '2026-02-20', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026044', nf: null },
+    { id: 'el040', data: '2026-02-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 47084.53, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026045', nf: null },
+    { id: 'el041', data: '2026-02-20', tipo: 'custo', descricao: 'DARF - Receita Federal (2)', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026046', nf: null },
+    { id: 'el042', data: '2026-02-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026047', nf: null },
+    { id: 'el043', data: '2026-02-20', tipo: 'custo', descricao: 'Promo-Infláveis - Evento', valor: 8800.0, categoria: '', projeto: '', fornecedor: 'ef030', origem: 'extrato', obs: '', transferNum: '2026048', nf: null },
+    { id: 'el044', data: '2026-02-21', tipo: 'custo', descricao: 'Sidnei Balbino da Silva - Freelancer', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef031', origem: 'extrato', obs: '', transferNum: '2026049', nf: null },
+    { id: 'el045', data: '2026-02-25', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 1600.0, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026050', nf: null },
+    { id: 'el046', data: '2026-02-25', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3190.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026051', nf: null },
+    { id: 'el047', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026052', nf: null },
+    { id: 'el048', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza (2)', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026053', nf: null },
+    { id: 'el049', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza (3)', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026054', nf: null },
+    { id: 'el050', data: '2026-02-25', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026055', nf: null },
+    { id: 'el051', data: '2026-02-25', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026056', nf: null },
+    { id: 'el052', data: '2026-02-25', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026057', nf: null },
+    { id: 'el053', data: '2026-02-25', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026058', nf: null },
+    { id: 'el054', data: '2026-02-25', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026059', nf: null },
+    { id: 'el055', data: '2026-02-25', tipo: 'custo', descricao: 'Leandro de Souza Mattos - Serviço', valor: 8500.0, categoria: '', projeto: '', fornecedor: 'ef033', origem: 'extrato', obs: '', transferNum: '2026060', nf: null },
+    { id: 'el056', data: '2026-02-26', tipo: 'custo', descricao: 'Promo-Infláveis - Evento', valor: 8800.0, categoria: '', projeto: '', fornecedor: 'ef030', origem: 'extrato', obs: '', transferNum: '2026061', nf: null },
+    { id: 'el057', data: '2026-02-26', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026062', nf: null },
+    { id: 'el058', data: '2026-03-01', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 18000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026063', nf: null },
+    { id: 'el059', data: '2026-03-02', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 197.9, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026064', nf: null },
+    { id: 'el060', data: '2026-03-02', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 826.38, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026065', nf: null },
+    { id: 'el061', data: '2026-03-02', tipo: 'custo', descricao: 'Magui Locação - Equipamentos', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef034', origem: 'extrato', obs: '', transferNum: '2026066', nf: null },
+    { id: 'el062', data: '2026-03-06', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 22838.17, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026067', nf: null },
+    { id: 'el063', data: '2026-03-06', tipo: 'custo', descricao: 'Anholeto Premiações Corporativas', valor: 4095.75, categoria: '', projeto: '', fornecedor: 'ef035', origem: 'extrato', obs: '', transferNum: '2026068', nf: null },
+    { id: 'el064', data: '2026-03-09', tipo: 'custo', descricao: 'Vindi Pagamentos Online', valor: 797.64, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026069', nf: null },
+    { id: 'el065', data: '2026-03-09', tipo: 'custo', descricao: 'Vindi Pagamentos Online (2)', valor: 125.55, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026070', nf: null },
+    { id: 'el066', data: '2026-03-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 4540.95, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026071', nf: null },
+    { id: 'el067', data: '2026-03-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer (2)', valor: 910.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026072', nf: null },
+    { id: 'el068', data: '2026-03-09', tipo: 'custo', descricao: 'Max Tours Viagens e Turismo', valor: 486.04, categoria: '', projeto: '', fornecedor: 'ef036', origem: 'extrato', obs: '', transferNum: '2026073', nf: null },
+    { id: 'el069', data: '2026-03-09', tipo: 'custo', descricao: 'Luciano Florencio Barbosa', valor: 220.0, categoria: '', projeto: '', fornecedor: 'ef037', origem: 'extrato', obs: '', transferNum: '2026074', nf: null },
+    { id: 'el070', data: '2026-03-11', tipo: 'custo', descricao: 'Marcus Vinicius Viana Infante - Freelancer', valor: 1500.0, categoria: '', projeto: '', fornecedor: 'ef038', origem: 'extrato', obs: '', transferNum: '2026075', nf: null },
+    { id: 'el071', data: '2026-03-11', tipo: 'custo', descricao: 'Helielson Luiz Nascimento - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef039', origem: 'extrato', obs: '', transferNum: '2026076', nf: null },
+    { id: 'el072', data: '2026-03-11', tipo: 'custo', descricao: 'Gustavo Monteiro de Arruda - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef040', origem: 'extrato', obs: '', transferNum: '2026077', nf: null },
+    { id: 'el073', data: '2026-03-11', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 20000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026078', nf: null },
+    { id: 'el074', data: '2026-03-12', tipo: 'custo', descricao: 'Shark Brindes - Brindes/Merchandising', valor: 25681.5, categoria: '', projeto: '', fornecedor: 'ef041', origem: 'extrato', obs: '', transferNum: '2026079', nf: null },
+    { id: 'el075', data: '2026-03-17', tipo: 'custo', descricao: 'AlugueJasp - Locação', valor: 300.0, categoria: '', projeto: '', fornecedor: 'ef042', origem: 'extrato', obs: '', transferNum: '2026080', nf: null },
+    { id: 'el076', data: '2026-03-18', tipo: 'custo', descricao: 'Vitor Del Bosque Lima - Freelancer', valor: 330.0, categoria: '', projeto: '', fornecedor: 'ef043', origem: 'extrato', obs: '', transferNum: '2026081', nf: null },
+    { id: 'el077', data: '2026-03-19', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 592.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026082', nf: null },
+    { id: 'el078', data: '2026-03-19', tipo: 'custo', descricao: 'Nova Era - Fornecimento (1)', valor: 15440.0, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026083', nf: null },
+    { id: 'el079', data: '2026-03-19', tipo: 'custo', descricao: 'Nova Era - Fornecimento (2)', valor: 1467.0, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026084', nf: null },
+    { id: 'el080', data: '2026-03-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 48375.1, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026085', nf: null },
+    { id: 'el081', data: '2026-03-20', tipo: 'custo', descricao: 'Agilize Tecnologia - Contabilidade', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef045', origem: 'extrato', obs: '', transferNum: '2026086', nf: null },
+    { id: 'el082', data: '2026-03-20', tipo: 'custo', descricao: 'Jean Thiago Morais Santos - Freelancer', valor: 900.0, categoria: '', projeto: '', fornecedor: 'ef046', origem: 'extrato', obs: '', transferNum: '2026087', nf: null },
+    { id: 'el083', data: '2026-03-20', tipo: 'custo', descricao: 'Lucas Guilherme de Souza Bezerra - Freelancer', valor: 900.0, categoria: '', projeto: '', fornecedor: 'ef047', origem: 'extrato', obs: '', transferNum: '2026088', nf: null },
+    { id: 'el084', data: '2026-03-20', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026089', nf: null },
+    { id: 'el085', data: '2026-03-20', tipo: 'custo', descricao: 'DARF - Receita Federal (2)', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026090', nf: null },
+    { id: 'el086', data: '2026-03-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026091', nf: null },
+    { id: 'el087', data: '2026-03-24', tipo: 'custo', descricao: 'Magalupay - Serviço', valor: 4654.72, categoria: '', projeto: '', fornecedor: 'ef048', origem: 'extrato', obs: '', transferNum: '2026092', nf: null },
+    { id: 'el088', data: '2026-03-24', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026093', nf: null },
+    { id: 'el089', data: '2026-03-25', tipo: 'custo', descricao: 'Vina Eventos - Evento', valor: 26562.68, categoria: '', projeto: '', fornecedor: 'ef049', origem: 'extrato', obs: '', transferNum: '2026094', nf: null },
+    { id: 'el090', data: '2026-03-25', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026095', nf: null },
+    { id: 'el091', data: '2026-03-25', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026096', nf: null },
+    { id: 'el092', data: '2026-03-25', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026097', nf: null },
+    { id: 'el093', data: '2026-03-26', tipo: 'custo', descricao: 'Guilherme Henrique Queiroz Martins - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef050', origem: 'extrato', obs: '', transferNum: '2026098', nf: null },
+    { id: 'el094', data: '2026-03-26', tipo: 'custo', descricao: 'Fervo Tournament - Evento', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef051', origem: 'extrato', obs: '', transferNum: '2026099', nf: null },
+    { id: 'el095', data: '2026-03-26', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026100', nf: null },
+    { id: 'el096', data: '2026-03-26', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 1150.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026101', nf: null },
+    { id: 'el097', data: '2026-03-26', tipo: 'custo', descricao: 'Caio dos Santos Nascimento - Freelancer', valor: 1000.0, categoria: '', projeto: '', fornecedor: 'ef052', origem: 'extrato', obs: '', transferNum: '2026102', nf: null },
+    { id: 'el098', data: '2026-03-26', tipo: 'custo', descricao: 'Luis Fernando Toriello dos Santos - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef053', origem: 'extrato', obs: '', transferNum: '2026103', nf: null },
+    { id: 'el099', data: '2026-03-29', tipo: 'custo', descricao: 'IATA - Passagens Aéreas', valor: 1067.4, categoria: '', projeto: '', fornecedor: 'ef054', origem: 'extrato', obs: '', transferNum: '2026104', nf: null },
+    { id: 'el100', data: '2026-03-29', tipo: 'custo', descricao: 'Dlocal Brasil - Pagamento Internacional', valor: 438.38, categoria: '', projeto: '', fornecedor: 'ef055', origem: 'extrato', obs: '', transferNum: '2026105', nf: null },
+    { id: 'el101', data: '2026-03-31', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026106', nf: null },
+    { id: 'el102', data: '2026-03-31', tipo: 'custo', descricao: 'Airbnb - Hospedagem', valor: 2695.0, categoria: '', projeto: '', fornecedor: 'ef056', origem: 'extrato', obs: '', transferNum: '2026107', nf: null },
+    { id: 'el103', data: '2026-04-01', tipo: 'custo', descricao: 'Minerio Digital Filmes - Produção', valor: 20000.0, categoria: '', projeto: '', fornecedor: 'ef057', origem: 'extrato', obs: '', transferNum: '2026108', nf: null },
+    { id: 'el104', data: '2026-04-01', tipo: 'custo', descricao: 'Katsu Produções - Produção', valor: 40000.0, categoria: '', projeto: '', fornecedor: 'ef058', origem: 'extrato', obs: '', transferNum: '2026109', nf: null },
+    { id: 'el105', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Henrique Bueno dos Santos - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef059', origem: 'extrato', obs: '', transferNum: '2026110', nf: null },
+    { id: 'el106', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Douglas Alves Braga - Freelancer', valor: 200.0, categoria: '', projeto: '', fornecedor: 'ef060', origem: 'extrato', obs: '', transferNum: '2026111', nf: null },
+    { id: 'el107', data: '2026-04-02', tipo: 'custo', descricao: 'Joao Pedro Costa Malta - Freelancer', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef061', origem: 'extrato', obs: '', transferNum: '2026112', nf: null },
+    { id: 'el108', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Douglas Alves Braga - Freelancer (2)', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef060', origem: 'extrato', obs: '', transferNum: '2026113', nf: null },
+    { id: 'el109', data: '2026-04-02', tipo: 'custo', descricao: 'Woodstock - Serviço', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef062', origem: 'extrato', obs: '', transferNum: '2026114', nf: null },
+    { id: 'el110', data: '2026-04-02', tipo: 'custo', descricao: 'Giovane Lurezonski Nogueira - Freelancer', valor: 10000.0, categoria: '', projeto: '', fornecedor: 'ef063', origem: 'extrato', obs: '', transferNum: '2026115', nf: null },
+    { id: 'el111', data: '2026-04-02', tipo: 'custo', descricao: 'Helielson Luiz Nascimento - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef039', origem: 'extrato', obs: '', transferNum: '2026116', nf: null },
+    { id: 'el112', data: '2026-04-02', tipo: 'custo', descricao: 'Marcus Vinicius Viana Infante - Freelancer', valor: 1000.0, categoria: '', projeto: '', fornecedor: 'ef038', origem: 'extrato', obs: '', transferNum: '2026117', nf: null },
+    { id: 'el113', data: '2026-04-02', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 87.45, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026118', nf: null },
+    { id: 'el114', data: '2026-04-02', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 3200.0, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026119', nf: null },
+    { id: 'el115', data: '2026-04-02', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 1198.0, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026120', nf: null },
+    { id: 'el116', data: '2026-04-04', tipo: 'custo', descricao: 'CSJ Cursos e Serviços Digitais', valor: 2500.0, categoria: '', projeto: '', fornecedor: 'ef064', origem: 'extrato', obs: '', transferNum: '2026121', nf: null },
+    { id: 'el117', data: '2026-04-06', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 2660.95, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026122', nf: null },
+    { id: 'el118', data: '2026-04-06', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 5705.63, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026123', nf: null },
+    { id: 'el119', data: '2026-04-06', tipo: 'custo', descricao: 'Lalamove - Logística (1)', valor: 36.31, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026124', nf: null },
+    { id: 'el120', data: '2026-04-06', tipo: 'custo', descricao: 'Lalamove - Logística (2)', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026125', nf: null },
+    { id: 'el121', data: '2026-04-06', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 1800.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026126', nf: null },
+    { id: 'el122', data: '2026-04-06', tipo: 'custo', descricao: 'Gilson Alves Moreira Junior - Freelancer', valor: 4000.0, categoria: '', projeto: '', fornecedor: 'ef065', origem: 'extrato', obs: '', transferNum: '2026127', nf: null },
+    { id: 'el123', data: '2026-04-06', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 150.99, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026128', nf: null },
+    { id: 'el124', data: '2026-04-08', tipo: 'custo', descricao: 'Uriel Jadi Spada Brito - Freelancer', valor: 10000.0, categoria: '', projeto: '', fornecedor: 'ef066', origem: 'extrato', obs: '', transferNum: '2026129', nf: null },
+    { id: 'el125', data: '2026-04-08', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 1797.0, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026130', nf: null },
+    { id: 'el126', data: '2026-04-08', tipo: 'custo', descricao: 'Remessa Online - Pagamento Internacional', valor: 5012.47, categoria: '', projeto: '', fornecedor: 'ef067', origem: 'extrato', obs: '', transferNum: '2026131', nf: null },
+    { id: 'el127', data: '2026-04-08', tipo: 'custo', descricao: 'Remessa Online - Pagamento Internacional (2)', valor: 5012.47, categoria: '', projeto: '', fornecedor: 'ef067', origem: 'extrato', obs: '', transferNum: '2026132', nf: null },
+    { id: 'el128', data: '2026-04-10', tipo: 'custo', descricao: 'Banco Topázio - Pagamento', valor: 5779.88, categoria: '', projeto: '', fornecedor: 'ef068', origem: 'extrato', obs: '', transferNum: '2026133', nf: null },
+    { id: 'el129', data: '2026-04-13', tipo: 'custo', descricao: 'Schneider Rodrigues da Silva Nascimento Santana', valor: 7000.0, categoria: '', projeto: '', fornecedor: 'ef069', origem: 'extrato', obs: '', transferNum: '2026134', nf: null },
+    { id: 'el130', data: '2026-04-14', tipo: 'custo', descricao: 'Lucas Moura Pelusi - Freelancer', valor: 1800.0, categoria: '', projeto: '', fornecedor: 'ef070', origem: 'extrato', obs: '', transferNum: '2026135', nf: null },
+    { id: 'el131', data: '2026-04-14', tipo: 'custo', descricao: 'Vina Eventos - Evento', valor: 26562.68, categoria: '', projeto: '', fornecedor: 'ef049', origem: 'extrato', obs: '', transferNum: '2026136', nf: null },
+    { id: 'el132', data: '2026-04-14', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 605.29, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026137', nf: null },
+    { id: 'el133', data: '2026-04-15', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 216.32, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026138', nf: null },
+    { id: 'el134', data: '2026-04-16', tipo: 'custo', descricao: 'DG Sports - Serviço Esportivo', valor: 17500.0, categoria: '', projeto: '', fornecedor: 'ef071', origem: 'extrato', obs: '', transferNum: '2026139', nf: null },
+    { id: 'el135', data: '2026-04-16', tipo: 'custo', descricao: 'Rosgolim Presentes - Brindes', valor: 378.0, categoria: '', projeto: '', fornecedor: 'ef072', origem: 'extrato', obs: '', transferNum: '2026140', nf: null },
+    { id: 'el136', data: '2026-04-16', tipo: 'custo', descricao: 'Euno Consultoria', valor: 5900.0, categoria: '', projeto: '', fornecedor: 'ef073', origem: 'extrato', obs: '', transferNum: '2026141', nf: null },
+    { id: 'el137', data: '2026-04-16', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 753.9, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026142', nf: null },
+    { id: 'el138', data: '2026-04-18', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 511.96, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026143', nf: null },
+    { id: 'el139', data: '2026-04-19', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 396.72, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026144', nf: null },
+    { id: 'el140', data: '2026-04-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026145', nf: null },
+    { id: 'el141', data: '2026-04-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026146', nf: null },
+    { id: 'el142', data: '2026-04-20', tipo: 'custo', descricao: 'IPTU/ISS - Pref. Mun. São Paulo', valor: 236.35, categoria: '', projeto: '', fornecedor: 'ef074', origem: 'extrato', obs: '', transferNum: '2026147', nf: null },
+    { id: 'el143', data: '2026-04-21', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026148', nf: null },
+    { id: 'el144', data: '2026-04-21', tipo: 'custo', descricao: 'Bhonnie Ateliê Esmalte e Pedras - Brindes', valor: 884.0, categoria: '', projeto: '', fornecedor: 'ef075', origem: 'extrato', obs: '', transferNum: '2026149', nf: null },
+    { id: 'el145', data: '2026-04-22', tipo: 'custo', descricao: 'Joao Pedro de Paula Mora - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef076', origem: 'extrato', obs: '', transferNum: '2026150', nf: null },
+    { id: 'el146', data: '2026-04-22', tipo: 'custo', descricao: 'Gabriel Romão Franco de Oliveira - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef077', origem: 'extrato', obs: '', transferNum: '2026151', nf: null },
+    { id: 'el147', data: '2026-04-22', tipo: 'custo', descricao: 'Wesley Barbosa da Silva - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef078', origem: 'extrato', obs: '', transferNum: '2026152', nf: null },
+    { id: 'el148', data: '2026-04-22', tipo: 'custo', descricao: 'Vitor Fabrício dos Santos Sereno - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef079', origem: 'extrato', obs: '', transferNum: '2026153', nf: null },
+    { id: 'el149', data: '2026-04-22', tipo: 'custo', descricao: 'Thayllan de Souza Azeredo - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef080', origem: 'extrato', obs: '', transferNum: '2026154', nf: null },
+    { id: 'el150', data: '2026-04-22', tipo: 'custo', descricao: 'Samuel Feliciano Felipe da Silva - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef081', origem: 'extrato', obs: '', transferNum: '2026155', nf: null },
+    { id: 'el151', data: '2026-04-22', tipo: 'custo', descricao: 'Willian Moura Araujo - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef082', origem: 'extrato', obs: '', transferNum: '2026156', nf: null },
+    { id: 'el152', data: '2026-04-22', tipo: 'custo', descricao: 'Gustavo Lucas Vieira Pimentel - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef083', origem: 'extrato', obs: '', transferNum: '2026157', nf: null },
+    { id: 'el153', data: '2026-04-22', tipo: 'custo', descricao: 'Ronaldo Portugal Pinto - Freelancer', valor: 600.0, categoria: '', projeto: '', fornecedor: 'ef084', origem: 'extrato', obs: '', transferNum: '2026158', nf: null },
+    { id: 'el154', data: '2026-04-22', tipo: 'custo', descricao: 'Willian Lima dos Santos - Freelancer', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef085', origem: 'extrato', obs: '', transferNum: '2026159', nf: null },
+    { id: 'el155', data: '2026-04-22', tipo: 'custo', descricao: 'Luis Fernando Toriello dos Santos - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef053', origem: 'extrato', obs: '', transferNum: '2026160', nf: null },
+    { id: 'el156', data: '2026-04-22', tipo: 'custo', descricao: 'Banco Topázio - Pagamento', valor: 598.56, categoria: '', projeto: '', fornecedor: 'ef068', origem: 'extrato', obs: '', transferNum: '2026161', nf: null },
+    { id: 'el157', data: '2026-04-22', tipo: 'custo', descricao: 'Sergio Antonio Costa Villa - Freelancer', valor: 1250.0, categoria: '', projeto: '', fornecedor: 'ef086', origem: 'extrato', obs: '', transferNum: '2026162', nf: null },
+    { id: 'el158', data: '2026-04-23', tipo: 'custo', descricao: 'Ecocopos - Brindes/Copos', valor: 598.8, categoria: '', projeto: '', fornecedor: 'ef087', origem: 'extrato', obs: '', transferNum: '2026163', nf: null },
+    { id: 'el159', data: '2026-04-23', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 817.68, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026164', nf: null },
+    { id: 'el160', data: '2026-04-23', tipo: 'custo', descricao: 'Shark Brindes - Brindes/Merchandising', valor: 12840.75, categoria: '', projeto: '', fornecedor: 'ef041', origem: 'extrato', obs: '', transferNum: '2026165', nf: null },
+    { id: 'el161', data: '2026-04-23', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 420.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026166', nf: null },
+    { id: 'el162', data: '2026-04-23', tipo: 'custo', descricao: 'Anholeto Premiações Corporativas', valor: 4255.0, categoria: '', projeto: '', fornecedor: 'ef035', origem: 'extrato', obs: '', transferNum: '2026167', nf: null },
+    { id: 'el163', data: '2026-04-24', tipo: 'custo', descricao: 'Booking.com - Hospedagem', valor: 1462.24, categoria: '', projeto: '', fornecedor: 'ef088', origem: 'extrato', obs: '', transferNum: '2026168', nf: null },
+    { id: 'el164', data: '2026-04-24', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 2581.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026169', nf: null },
+    { id: 'el165', data: '2026-04-24', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026170', nf: null },
+    { id: 'el166', data: '2026-04-24', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026171', nf: null },
+    { id: 'el167', data: '2026-04-24', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026172', nf: null },
+    { id: 'el168', data: '2026-04-24', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 45000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026173', nf: null },
+    { id: 'el169', data: '2026-04-27', tipo: 'custo', descricao: 'CIA das Ideias - Gráfica/Design', valor: 150.0, categoria: '', projeto: '', fornecedor: 'ef089', origem: 'extrato', obs: '', transferNum: '2026174', nf: null },
+    { id: 'el170', data: '2026-04-28', tipo: 'custo', descricao: 'Gabriel Macario Lopes - Freelancer', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef090', origem: 'extrato', obs: '', transferNum: '2026175', nf: null },
+    { id: 'el171', data: '2026-04-28', tipo: 'custo', descricao: 'VR Benefícios e Serviços', valor: 110.27, categoria: '', projeto: '', fornecedor: 'ef091', origem: 'extrato', obs: '', transferNum: '2026176', nf: null },
+    { id: 'el172', data: '2026-04-28', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 5500.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026177', nf: null },
+    { id: 'el173', data: '2026-04-28', tipo: 'custo', descricao: 'Brunno Felippe Colosimo - Freelancer', valor: 333.41, categoria: '', projeto: '', fornecedor: 'ef092', origem: 'extrato', obs: '', transferNum: '2026178', nf: null },
+    { id: 'el174', data: '2026-04-28', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 4700.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026179', nf: null },
+    { id: 'el175', data: '2026-04-28', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026180', nf: null },
+    { id: 'el176', data: '2026-04-28', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026181', nf: null },
+    { id: 'el177', data: '2026-04-28', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026182', nf: null },
+    { id: 'el178', data: '2026-04-28', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 240.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026183', nf: null },
+    { id: 'el179', data: '2026-04-29', tipo: 'custo', descricao: 'CDI / CIA das Ideias - Gráfica', valor: 150.0, categoria: '', projeto: '', fornecedor: 'ef089', origem: 'extrato', obs: '', transferNum: '2026184', nf: null },
+    { id: 'el180', data: '2026-04-29', tipo: 'custo', descricao: 'Max Tours Viagens e Turismo', valor: 8921.23, categoria: '', projeto: '', fornecedor: 'ef036', origem: 'extrato', obs: '', transferNum: '2026185', nf: null },
+    { id: 'el181', data: '2026-04-29', tipo: 'custo', descricao: 'Nerd Stickers - Brindes', valor: 272.6, categoria: '', projeto: '', fornecedor: 'ef027', origem: 'extrato', obs: '', transferNum: '2026186', nf: null },
+    { id: 'el182', data: '2026-04-29', tipo: 'custo', descricao: 'Copyset Digital - Impressão', valor: 45.0, categoria: '', projeto: '', fornecedor: 'ef093', origem: 'extrato', obs: '', transferNum: '2026187', nf: null },
+    { id: 'el183', data: '2026-04-29', tipo: 'custo', descricao: 'Sertha - Serviço', valor: 1945.0, categoria: '', projeto: '', fornecedor: 'ef094', origem: 'extrato', obs: '', transferNum: '2026188', nf: null },
+    { id: 'el184', data: '2026-04-30', tipo: 'custo', descricao: 'Toyoinfláveis - Evento', valor: 2470.0, categoria: '', projeto: '', fornecedor: 'ef095', origem: 'extrato', obs: '', transferNum: '2026189', nf: null },
+    { id: 'el185', data: '2026-04-30', tipo: 'custo', descricao: 'Nakalu - Serviço', valor: 440.0, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026190', nf: null },
+    { id: 'el186', data: '2026-05-01', tipo: 'custo', descricao: 'Uber - Transporte', valor: 159.96, categoria: '', projeto: '', fornecedor: 'ef096', origem: 'extrato', obs: '', transferNum: '2026191', nf: null },
+    { id: 'el187', data: '2026-05-01', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima - Freelancer', valor: 188.9, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026192', nf: null },
+    { id: 'el188', data: '2026-05-01', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 5412.8, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026193', nf: null },
+    { id: 'el189', data: '2026-05-01', tipo: 'custo', descricao: 'Pedro Henrique Estanislau Reis Pereira - Freelancer', valor: 247.6, categoria: '', projeto: '', fornecedor: 'ef098', origem: 'extrato', obs: '', transferNum: '2026194', nf: null },
+    { id: 'el190', data: '2026-05-01', tipo: 'custo', descricao: 'Alex Kaue Cordeiro - Freelancer', valor: 49.97, categoria: '', projeto: '', fornecedor: 'ef099', origem: 'extrato', obs: '', transferNum: '2026195', nf: null },
+    { id: 'el191', data: '2026-05-02', tipo: 'custo', descricao: 'Alex Kaue Cordeiro - Freelancer', valor: 167.85, categoria: '', projeto: '', fornecedor: 'ef099', origem: 'extrato', obs: '', transferNum: '2026196', nf: null },
+    { id: 'el192', data: '2026-05-02', tipo: 'custo', descricao: 'Andreas Pedro Menezes Andrade - Freelancer', valor: 157.5, categoria: '', projeto: '', fornecedor: 'ef100', origem: 'extrato', obs: '', transferNum: '2026197', nf: null },
+    { id: 'el193', data: '2026-05-02', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima - Freelancer', valor: 224.55, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026198', nf: null },
+    { id: 'el194', data: '2026-05-03', tipo: 'custo', descricao: 'Pedro Henrique Estanislau Reis Pereira - Freelancer', valor: 333.98, categoria: '', projeto: '', fornecedor: 'ef098', origem: 'extrato', obs: '', transferNum: '2026199', nf: null },
+    { id: 'el195', data: '2026-05-03', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima - Freelancer', valor: 105.47, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026200', nf: null },
+    { id: 'el196', data: '2026-05-03', tipo: 'custo', descricao: 'Andreas Pedro Menezes Andrade - Freelancer', valor: 135.65, categoria: '', projeto: '', fornecedor: 'ef100', origem: 'extrato', obs: '', transferNum: '2026201', nf: null },
+    { id: 'el197', data: '2026-05-03', tipo: 'custo', descricao: 'Matheus de Lima Guedes - Freelancer', valor: 218.82, categoria: '', projeto: '', fornecedor: 'ef101', origem: 'extrato', obs: '', transferNum: '2026202', nf: null },
+    { id: 'el198', data: '2026-05-03', tipo: 'custo', descricao: 'Guilherme Coelho Martins - Freelancer', valor: 159.17, categoria: '', projeto: '', fornecedor: 'ef102', origem: 'extrato', obs: '', transferNum: '2026203', nf: null },
+    { id: 'el199', data: '2026-05-03', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 8666.47, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026204', nf: null },
+    { id: 'el200', data: '2026-05-04', tipo: 'custo', descricao: 'Matheus Felipe Cruz Braz - Freelancer', valor: 3200.0, categoria: '', projeto: '', fornecedor: 'ef103', origem: 'extrato', obs: '', transferNum: '2026205', nf: null },
+  ],
+  nfCounter: 206,
+  lancCounter: 206,
+};
+let DB = JSON.parse(JSON.stringify(DB_DEFAULT));
+
+// ── Persistência: localStorage + Firebase Firestore ──────────────────────
+function save() {
+  // 1. Always save locally first (instant, no network needed)
+  try {
+    const serializable = JSON.parse(JSON.stringify(DB, (k, v) => {
+      // Strip File objects (not serializable)
+      if (v && v instanceof File) return undefined;
+      if (k === 'file' && typeof v === 'object' && v !== null) return undefined;
+      return v;
+    }));
+    localStorage.setItem('financi_db', JSON.stringify(serializable));
+    // 2. Save to Firestore (debounced, async)
+    if (window._saveToFirestore) window._saveToFirestore(serializable);
+  } catch(e) { console.warn('save error', e); }
+}
+
+function applyDB(source, data) {
+  if (!data || !data.lancamentos) return false;
+  DB = data;
+  if (!DB.fornecedores) DB.fornecedores = [];
+  console.log(`📦 Dados carregados de: ${source} (${DB.lancamentos.length} lançamentos)`);
+  return true;
+}
+
+function load() {
+  // Always start from the full HTML default (205 lancamentos)
+  // This ensures we never start with fewer entries than the HTML ships with
+  DB = JSON.parse(JSON.stringify(DB_DEFAULT));
+
+  // Then overlay with localStorage if it has MORE data
+  try {
+    const saved = localStorage.getItem('financi_db');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      const savedLancs = parsed?.lancamentos?.length || 0;
+      const defaultLancs = DB_DEFAULT.lancamentos?.length || 0;
+      if (savedLancs >= defaultLancs) {
+        applyDB('localStorage', parsed);
+      } else {
+        console.log(`📦 localStorage (${savedLancs}) < HTML padrão (${defaultLancs}) — usando HTML`);
+      }
+    }
+  } catch(e) { console.warn('localStorage load error', e); }
+
+  // Register real-time sync callback for updates from other devices
+  window._applyCloudDB = (incoming) => {
+    if (!incoming || !incoming.lancamentos) return;
+    applyDB('nuvem (outro dispositivo)', incoming);
+    renderDashboard();
+    const activePage = document.querySelector('.page.active');
+    if (activePage) renderPage(activePage.id.replace('page-', ''));
+    console.log('🔄 Sincronizado de outro dispositivo');
+  };
+}
+
+async function loadFromCloud() {
+  // Wait up to 4 seconds for Firebase to load cloud data
+  try {
+    await Promise.race([
+      window._firebaseReady || Promise.resolve(),
+      new Promise(r => setTimeout(r, 4000)),
+    ]);
+  } catch(e) {}
+
+  if (!window._DB_CLOUD) {
+    // Cloud empty or unreachable — push local DB to cloud so other devices get it
+    console.log(`☁️ Nuvem vazia/inalcançável — enviando ${DB.lancamentos?.length} lançamentos para Firebase...`);
+    save();
+    return;
+  }
+
+  const cloudLancs = window._DB_CLOUD.lancamentos?.length || 0;
+  const localLancs = DB.lancamentos?.length || 0;
+  // How many lancamentos the HTML file itself ships with (source of truth)
+  const HTML_LANC_COUNT = 205;
+
+  console.log(`☁️ Nuvem: ${cloudLancs} | Local: ${localLancs} | HTML padrão: ${HTML_LANC_COUNT}`);
+
+  if (cloudLancs >= HTML_LANC_COUNT) {
+    // Cloud is up to date — use it
+    applyDB('Firebase (nuvem)', window._DB_CLOUD);
+    renderDashboard();
+    const activePage = document.querySelector('.page.active');
+    if (activePage) renderPage(activePage.id.replace('page-', ''));
+  } else {
+    // Cloud is behind the HTML default — local DB (which has 205) wins, push to cloud
+    console.log(`📤 Nuvem (${cloudLancs}) desatualizada → enviando ${localLancs} lançamentos para Firebase...`);
+    save();
+  }
+}
+
+// ==================== UTILITIES ====================
+
+function uid() { return '_' + Math.random().toString(36).substr(2, 9); }
+
+function fmt(val) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const parts = d.split('-');
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function getCategoria(id) { return DB.categorias.find(c => c.id === id); }
+function getProjeto(id) { return DB.projetos.find(p => p.id === id); }
+function getCliente(id) { return DB.clientes.find(c => c.id === id); }
+function getImposto(id) { return DB.impostos.find(i => i.id === id); }
+function getFornecedor(id) { return DB.fornecedores.find(f => f.id === id); }
+
+function badgeColor(cor) {
+  const map = { green:'badge-green', blue:'badge-blue', amber:'badge-amber', red:'badge-red', purple:'badge-purple', gray:'badge-gray' };
+  return map[cor] || 'badge-gray';
+}
+
+function catBadge(catId) {
+  const c = getCategoria(catId);
+  if (!c) return '<span class="badge badge-gray">—</span>';
+  return `<span class="badge ${badgeColor(c.cor)}">${c.nome}</span>`;
+}
+
+function projBadge(projId) {
+  const p = getProjeto(projId);
+  if (!p) return '<span class="badge badge-gray">—</span>';
+  return `<span class="badge badge-blue">${p.nome}</span>`;
+}
+
+function statusBadge(s) {
+  const map = { ativo:'badge-green', pausado:'badge-amber', concluido:'badge-gray' };
+  const labels = { ativo:'Ativo', pausado:'Pausado', concluido:'Concluído' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${labels[s]||s}</span>`;
+}
+
+function lancamentosDoProj(projId) {
+  return DB.lancamentos.filter(l => l.projeto === projId && l.tipo === 'custo');
+}
+
+function totalCustoProj(projId) {
+  return lancamentosDoProj(projId).reduce((s, l) => s + (l.valor || 0), 0);
+}
+
+function impostoProj(proj) {
+  if (!proj.impostoId) return 0;
+  const imp = getImposto(proj.impostoId);
+  if (!imp) return 0;
+  const pct = proj.impostoPct != null && proj.impostoPct !== '' ? parseFloat(proj.impostoPct) : imp.pct;
+  return (proj.receita || 0) * pct / 100;
+}
+
+function lucroProj(proj) {
+  const custos = totalCustoProj(proj.id);
+  const imp = impostoProj(proj);
+  return (proj.receita || 0) - custos - imp;
+}
+
+// ==================== NAVIGATION ====================
+
+function showPage(page) {
+  if (event && event.currentTarget) event.currentTarget.classList.add('active');
+  navigateToPage(page);
+}
+
+function navigateToPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    const oc = n.getAttribute('onclick') || '';
+    if (oc.includes("showPage('" + page + "')")) n.classList.add('active');
+  });
+  renderPage(page);
+}
+
+function renderPage(page) {
+  if (page === 'dashboard') renderDashboard();
+  else if (page === 'lancamentos') renderLancamentos();
+  else if (page === 'projetos') renderProjetos();
+  else if (page === 'categorias') renderCategorias();
+  else if (page === 'clientes') renderClientes();
+  else if (page === 'impostos') renderImpostos();
+  else if (page === 'fornecedores') renderFornecedores();
+}
+
+// ==================== DASHBOARD ====================
+
+function renderDashboard() {
+  const custos = DB.lancamentos.filter(l => l.tipo === 'custo').reduce((s,l) => s + l.valor, 0);
+  const receitas = DB.lancamentos.filter(l => l.tipo === 'receita').reduce((s,l) => s + l.valor, 0);
+  const saldo = receitas - custos;
+  const nfCount = DB.lancamentos.filter(l => l.nf).length;
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Total de custos</div>
+      <div class="stat-value red">${fmt(custos)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Receitas lançadas</div>
+      <div class="stat-value green">${fmt(receitas)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Saldo</div>
+      <div class="stat-value ${saldo >= 0 ? 'green' : 'red'}">${fmt(saldo)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">NFs anexadas</div>
+      <div class="stat-value blue">${nfCount}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Projetos ativos</div>
+      <div class="stat-value">${DB.projetos.filter(p => p.status === 'ativo').length}</div>
+    </div>
+  `;
+
+  // Gastos por categoria
+  const catMap = {};
+  DB.lancamentos.filter(l => l.tipo === 'custo' && l.categoria).forEach(l => {
+    catMap[l.categoria] = (catMap[l.categoria] || 0) + l.valor;
+  });
+
+  let catHtml = '';
+  if (Object.keys(catMap).length === 0) {
+    catHtml = '<div class="empty-state"><p>Nenhum dado</p></div>';
+  } else {
+    const max = Math.max(...Object.values(catMap));
+    catHtml = Object.entries(catMap).sort((a,b) => b[1]-a[1]).map(([cid, val]) => {
+      const cat = getCategoria(cid);
+      const pct = Math.round(val / max * 100);
+      const colorMap = { green:'var(--accent)', blue:'var(--accent2)', amber:'#b45309', red:'var(--red)', purple:'var(--purple)', gray:'var(--text3)' };
+      const col = colorMap[cat?.cor] || 'var(--text3)';
+      return `
+        <div style="margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+            <span style="font-weight:500">${cat?.nome || 'Sem categoria'}</span>
+            <span style="color:var(--text2);font-family:'DM Mono',monospace">${fmt(val)}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${pct}%;background:${col}"></div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('dash-categorias').innerHTML = catHtml;
+
+  // Projetos resumo
+  let projHtml = '';
+  if (DB.projetos.length === 0) {
+    projHtml = '<div class="empty-state"><p>Nenhum projeto</p></div>';
+  } else {
+    projHtml = DB.projetos.slice(0, 5).map(p => {
+      const custos = totalCustoProj(p.id);
+      const pct = p.receita ? Math.min(100, Math.round(custos / p.receita * 100)) : 0;
+      return `
+        <div style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:13px;font-weight:500">${p.nome}</span>
+            ${statusBadge(p.status)}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px">
+            <span>Custos: ${fmt(custos)}</span>
+            <span>Receita: ${fmt(p.receita)}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${pct}%;background:${pct > 90 ? 'var(--red)' : 'var(--accent)'}"></div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+  document.getElementById('dash-projetos').innerHTML = projHtml;
+
+  // Últimos lançamentos
+  const recentes = [...DB.lancamentos].sort((a,b) => b.data.localeCompare(a.data)).slice(0, 10);
+  const dashOpts = {showNum:true, showOrig:false, showActions:true};
+  document.getElementById('dash-recentes-head').innerHTML = '<thead>' + lancTableHeader(dashOpts) + '</thead>';
+  document.getElementById('dash-recentes').innerHTML = recentes.map(l => lancRow(l, dashOpts)).join('');
+}
+
+// ==================== LANÇAMENTOS ====================
+
+function nfCell(l) {
+  if (!l.nf) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  if (l.nf.uploading) {
+    return `<span class="badge badge-amber" style="cursor:default;animation:pulse 1s infinite">
+      <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v6l4 2"/><circle cx="8" cy="8" r="6"/></svg>
+      Enviando…</span>`;
+  }
+  if (l.nf.driveUrl) {
+    return `<a class="nf-link" href="${l.nf.driveUrl}" target="_blank" rel="noopener"
+        onclick="event.stopPropagation()" title="Ver no Google Drive: ${l.nf.driveName||l.nf.name}">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l4 4v8H4V2z"/><path d="M9 2v4h4"/></svg>
+        Drive ✓</a>`;
+  }
+  if (l.nf.localUrl) {
+    return `<a class="nf-link" href="${l.nf.localUrl}" target="_blank" rel="noopener"
+        onclick="event.stopPropagation()" title="${l.nf.name} (local — Drive pendente)"
+        style="background:var(--amber-light);color:var(--amber)">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l4 4v8H4V2z"/><path d="M9 2v4h4"/></svg>
+        NF local</a>`;
+  }
+  // Has name but no URL
+  return `<span class="badge badge-gray" title="${l.nf.name}" style="cursor:default">
+    <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 2h5l4 4v8H4V2z"/></svg>
+    ${(l.nf.name||'').length > 10 ? (l.nf.name||'').slice(0,10)+'…' : (l.nf.name||'NF')}
+  </span>`;
+}
+
+function projCell(l) {
+  const p = getProjeto(l.projeto);
+  if (!p) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  return `<span class="badge badge-blue" style="cursor:pointer" title="Ir para o projeto"
+    onclick="event.stopPropagation();irParaProjeto('${p.id}')">${p.nome}</span>`;
+}
+
+function fornCell(l) {
+  const f = getFornecedor(l.fornecedor);
+  if (!f) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  return `<span class="badge badge-purple">${f.nome}</span>`;
+}
+
+function lancRow(l, opts) {
+  opts = opts || {};
+  const showNum    = opts.showNum    !== false;
+  const showOrig   = opts.showOrig   !== false;
+  const showActions= opts.showActions!== false;
+  const origLabels = { extrato:'Extrato', cartao:'Cartão', manual:'Manual' };
+  return `<tr>
+    ${showNum ? `<td style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${l.transferNum||'—'}</td>` : ''}
+    <td style="color:var(--text2);white-space:nowrap">${fmtDate(l.data)}</td>
+    <td>
+      <div style="font-weight:500">${l.descricao}</div>
+      ${l.obs ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">${l.obs}</div>` : ''}
+    </td>
+    <td>${catBadge(l.categoria)}</td>
+    <td>${projCell(l)}</td>
+    <td>${fornCell(l)}</td>
+    ${showOrig ? `<td><span class="badge badge-gray" style="font-size:10px">${origLabels[l.origem]||l.origem||'—'}</span></td>` : ''}
+    <td>${nfCell(l)}</td>
+    <td style="text-align:right" class="${l.tipo==='custo'?'amount-negative':'amount-positive'}">${l.tipo==='custo'?'−':'+'}${fmt(l.valor)}</td>
+    ${showActions ? `<td>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-sm btn-icon" title="Editar" onclick="editarLancamento('${l.id}')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2l3 3-9 9H2v-3L11 2z"/></svg>
+        </button>
+        <button class="btn btn-sm btn-icon btn-danger" title="Excluir" onclick="excluirLancamento('${l.id}')">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/></svg>
+        </button>
+      </div>
+    </td>` : ''}
+  </tr>`;
+}
+
+function lancTableHeader(opts) {
+  opts = opts || {};
+  const showNum    = opts.showNum    !== false;
+  const showOrig   = opts.showOrig   !== false;
+  const showActions= opts.showActions!== false;
+  return `<tr>
+    ${showNum ? '<th>Nº</th>' : ''}
+    <th>Data</th><th>Descrição</th><th>Categoria</th><th>Projeto</th>
+    <th>Fornecedor</th>
+    ${showOrig ? '<th>Origem</th>' : ''}
+    <th>NF</th><th style="text-align:right">Valor</th>
+    ${showActions ? '<th>Ações</th>' : ''}
+  </tr>`;
+}
+
+function irParaProjeto(projId) {
+  navigateToPage('projetos');
+  setTimeout(() => detalheProj(projId), 80);
+}
+
+function renderLancamentos() {
+  // Atualiza filtros
+  populateSelect('filter-projeto', DB.projetos, 'id', 'nome', 'Todos os projetos');
+  populateSelect('filter-categoria', DB.categorias, 'id', 'nome', 'Todas as categorias');
+  populateSelect('filter-fornecedor', DB.fornecedores, 'id', 'nome', 'Todos os fornecedores');
+
+  const fProj = document.getElementById('filter-projeto').value;
+  const fCat = document.getElementById('filter-categoria').value;
+  const fForn = document.getElementById('filter-fornecedor').value;
+  const fTipo = document.getElementById('filter-tipo').value;
+  const fBusca = (document.getElementById('filter-busca').value || '').toLowerCase();
+
+  let list = DB.lancamentos.filter(l => {
+    if (fProj && l.projeto !== fProj) return false;
+    if (fCat && l.categoria !== fCat) return false;
+    if (fForn && l.fornecedor !== fForn) return false;
+    if (fTipo && l.tipo !== fTipo) return false;
+    if (fBusca && !l.descricao.toLowerCase().includes(fBusca)) return false;
+    return true;
+  }).sort((a,b) => b.data.localeCompare(a.data));
+
+  const tbody = document.getElementById('tabela-lancamentos');
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>Nenhum lançamento encontrado</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(l => lancRow(l, {showNum:true, showOrig:true, showActions:true})).join('');
+}
+
+function editarLancamento(id) {
+  const l = DB.lancamentos.find(x => x.id === id);
+  if (!l) return;
+  document.getElementById('modal-lanc-title').textContent = 'Editar lançamento';
+  document.getElementById('lanc-id').value = l.id;
+  document.getElementById('lanc-data').value = l.data;
+  document.getElementById('lanc-tipo').value = l.tipo;
+  document.getElementById('lanc-descricao').value = l.descricao;
+  document.getElementById('lanc-valor').value = l.valor;
+  document.getElementById('lanc-origem').value = l.origem || 'manual';
+  document.getElementById('lanc-obs').value = l.obs || '';
+  populateSelectEl('lanc-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
+  populateSelectEl('lanc-projeto', DB.projetos, 'id', 'nome', '— Selecione —');
+  populateSelectEl('lanc-fornecedor', DB.fornecedores, 'id', 'nome', '— Selecione —');
+  document.getElementById('lanc-categoria').value = l.categoria || '';
+  document.getElementById('lanc-projeto').value = l.projeto || '';
+  document.getElementById('lanc-fornecedor').value = l.fornecedor || '';
+  if (l.nf) {
+    document.getElementById('nf-filename').textContent = l.nf.name;
+    document.getElementById('nf-upload-status').style.display = 'flex';
+    document.getElementById('nf-status-text').textContent = 'Arquivo já anexado';
+  } else {
+    document.getElementById('nf-filename').textContent = 'Anexar NF (PDF, imagem)';
+    document.getElementById('nf-upload-status').style.display = 'none';
+  }
+  openModal('modal-lancamento');
+}
+
+function excluirLancamento(id) {
+  if (!confirm('Excluir este lançamento?')) return;
+  DB.lancamentos = DB.lancamentos.filter(l => l.id !== id);
+  save();
+  renderLancamentos();
+  renderDashboard();
+}
+
+// ==================== PROJETOS ====================
+
+function renderProjetos() {
+  const grid = document.getElementById('grid-projetos');
+  if (DB.projetos.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>Nenhum projeto criado</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = DB.projetos.map(p => {
+    const custos = totalCustoProj(p.id);
+    const imp = impostoProj(p);
+    const lucro = lucroProj(p);
+    const pct = p.receita ? Math.min(100, Math.round(custos / p.receita * 100)) : 0;
+    const cli = getCliente(p.cliente);
+    const cats = (p.categorias || []).map(cid => catBadge(cid)).join(' ');
+    const impObj = getImposto(p.impostoId);
+    const impPct = p.impostoPct != null && p.impostoPct !== '' ? p.impostoPct : (impObj?.pct || 0);
+
+    return `
+      <div class="project-card" onclick="detalheProj('${p.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+          <div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:2px">${p.nome}</div>
+            <div style="font-size:12px;color:var(--text3)">${cli ? cli.nome : 'Sem cliente'}</div>
+          </div>
+          ${statusBadge(p.status)}
+        </div>
+
+        ${cats ? `<div class="tag-list" style="margin-bottom:10px">${cats}</div>` : ''}
+
+        <div class="divider"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+          <div>
+            <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Receita</div>
+            <div style="font-size:14px;font-weight:600;color:var(--accent);font-family:'DM Mono',monospace">${fmt(p.receita)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Custos</div>
+            <div style="font-size:14px;font-weight:600;color:var(--red);font-family:'DM Mono',monospace">${fmt(custos)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Imposto ${impObj ? `(${impObj.nome} ${impPct}%)` : ''}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--amber);font-family:'DM Mono',monospace">−${fmt(imp)}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Lucro líquido</div>
+            <div style="font-size:14px;font-weight:600;color:${lucro >= 0 ? 'var(--accent)' : 'var(--red)'};font-family:'DM Mono',monospace">${fmt(lucro)}</div>
+          </div>
+        </div>
+
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${pct}%;background:${pct > 90 ? 'var(--red)' : 'var(--accent)'}"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">${pct}% da receita em custos</div>
+
+        <div style="display:flex;gap:6px;margin-top:14px" onclick="event.stopPropagation()">
+          <button class="btn btn-sm" onclick="editarProjeto('${p.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="excluirProjeto('${p.id}')">Excluir</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function detalheProj(id) {
+  const p = getProjeto(id);
+  if (!p) return;
+  const lancamentos = lancamentosDoProj(id);
+  const custos = totalCustoProj(id);
+  const imp = impostoProj(p);
+  const lucro = lucroProj(p);
+  const cli = getCliente(p.cliente);
+  const impObj = getImposto(p.impostoId);
+  const impPct = p.impostoPct != null && p.impostoPct !== '' ? p.impostoPct : (impObj?.pct || 0);
+
+  // Custo por categoria
+  const catMap = {};
+  lancamentos.forEach(l => {
+    const key = l.categoria || '__sem__';
+    catMap[key] = (catMap[key] || 0) + l.valor;
+  });
+  const catTotal = Object.values(catMap).reduce((s, v) => s + v, 0);
+  const colorMap = { green:'var(--accent)', blue:'var(--accent2)', amber:'var(--amber)', red:'var(--red)', purple:'var(--purple)', gray:'var(--text3)' };
+
+  const catBreakdownHtml = Object.entries(catMap).length === 0
+    ? '<div style="color:var(--text3);font-size:12px">Nenhum custo registrado</div>'
+    : Object.entries(catMap).sort((a,b) => b[1]-a[1]).map(([cid, val]) => {
+        const cat = cid === '__sem__' ? null : getCategoria(cid);
+        const nome = cat ? cat.nome : 'Sem categoria';
+        const cor = cat ? (colorMap[cat.cor] || 'var(--text3)') : 'var(--text3)';
+        const pct = catTotal ? Math.round(val / catTotal * 100) : 0;
+        return `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+                <span style="font-weight:500;color:var(--text)">${nome}</span>
+                <span style="font-family:'DM Mono',monospace;color:var(--text2)">${fmt(val)} <span style="color:var(--text3)">(${pct}%)</span></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width:${pct}%;background:${cor}"></div>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+
+  document.getElementById('proj-det-titulo').textContent = p.nome;
+  document.getElementById('proj-det-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="stat-card"><div class="stat-label">Receita</div><div class="stat-value green">${fmt(p.receita)}</div></div>
+      <div class="stat-card"><div class="stat-label">Custos totais</div><div class="stat-value red">${fmt(custos)}</div></div>
+      <div class="stat-card"><div class="stat-label">Imposto${impObj ? ` (${impPct}%)` : ''}</div><div class="stat-value" style="color:var(--amber)">−${fmt(imp)}</div></div>
+    </div>
+    <div class="stat-card" style="margin-bottom:20px;background:${lucro >= 0 ? 'var(--accent-light)' : 'var(--red-light)'}">
+      <div class="stat-label">Lucro líquido (receita − custos − imposto)</div>
+      <div class="stat-value ${lucro >= 0 ? 'green' : 'red'}">${fmt(lucro)}</div>
+    </div>
+
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:20px;flex-wrap:wrap">
+      <span><strong>Cliente:</strong> ${cli ? cli.nome : '—'}</span>
+      <span><strong>Status:</strong> ${p.status}</span>
+      ${p.inicio ? `<span><strong>Início:</strong> ${fmtDate(p.inicio)}</span>` : ''}
+      ${p.termino ? `<span><strong>Término:</strong> ${fmtDate(p.termino)}</span>` : ''}
+      ${impObj ? `<span><strong>Imposto:</strong> ${impObj.nome} ${impPct}%</span>` : ''}
+    </div>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2)">Custos por categoria</div>
+    <div style="margin-bottom:24px">${catBreakdownHtml}</div>
+
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Todos os lançamentos</div>
+    ${lancamentos.length === 0 ? '<div class="empty-state"><p>Nenhum custo registrado</p></div>' :
+      '<div class="table-wrap"><table><thead>' +
+      lancTableHeader({showNum:true, showOrig:true, showActions:true}) +
+      '</thead><tbody>' +
+      lancamentos.map(l => lancRow(l, {showNum:true, showOrig:true, showActions:true})).join('') +
+      '</tbody></table></div>'}`;
+
+  openModal('modal-proj-detalhe');
+}
+
+function editarProjeto(id) {
+  const p = getProjeto(id);
+  if (!p) return;
+  document.getElementById('modal-proj-title').textContent = 'Editar projeto';
+  document.getElementById('proj-id').value = p.id;
+  document.getElementById('proj-nome').value = p.nome;
+  document.getElementById('proj-receita').value = p.receita;
+  document.getElementById('proj-status').value = p.status;
+  document.getElementById('proj-inicio').value = p.inicio || '';
+  document.getElementById('proj-termino').value = p.termino || '';
+  document.getElementById('proj-obs').value = p.obs || '';
+  document.getElementById('proj-imposto-pct').value = p.impostoPct != null ? p.impostoPct : '';
+  populateSelectEl('proj-cliente', DB.clientes, 'id', 'nome', '— Selecione —');
+  document.getElementById('proj-cliente').value = p.cliente || '';
+  populateSelectEl('proj-imposto', DB.impostos, 'id', 'nome', 'Nenhum', (i) => `${i.nome} (${i.pct}%)`);
+  document.getElementById('proj-imposto').value = p.impostoId || '';
+  renderProjCategorias(p.categorias || []);
+  openModal('modal-projeto');
+}
+
+function excluirProjeto(id) {
+  if (!confirm('Excluir este projeto? Os lançamentos associados serão desvinculados.')) return;
+  DB.projetos = DB.projetos.filter(p => p.id !== id);
+  DB.lancamentos.forEach(l => { if (l.projeto === id) l.projeto = ''; });
+  save();
+  renderProjetos();
+}
+
+// ==================== CATEGORIAS ====================
+
+function renderCategorias() {
+  const el = document.getElementById('lista-categorias');
+  if (DB.categorias.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>Nenhuma categoria</p></div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Cor</th><th>Lançamentos</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${DB.categorias.map(c => {
+            const count = DB.lancamentos.filter(l => l.categoria === c.id).length;
+            return `
+              <tr>
+                <td style="font-weight:500">${c.nome}</td>
+                <td><span class="badge ${badgeColor(c.cor)}">${c.cor}</span></td>
+                <td style="color:var(--text2)">${count}</td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm" onclick="editarCategoria('${c.id}')">Editar</button>
+                    <button class="btn btn-sm btn-danger" onclick="excluirCategoria('${c.id}')">Excluir</button>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function editarCategoria(id) {
+  const c = getCategoria(id);
+  if (!c) return;
+  document.getElementById('cat-id').value = c.id;
+  document.getElementById('cat-nome').value = c.nome;
+  document.getElementById('cat-cor').value = c.cor;
+  openModal('modal-categoria');
+}
+
+function excluirCategoria(id) {
+  if (!confirm('Excluir esta categoria?')) return;
+  DB.categorias = DB.categorias.filter(c => c.id !== id);
+  DB.lancamentos.forEach(l => { if (l.categoria === id) l.categoria = ''; });
+  save();
+  renderCategorias();
+}
+
+// ==================== CLIENTES ====================
+
+function renderClientes() {
+  const el = document.getElementById('lista-clientes');
+  if (DB.clientes.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>Nenhum cliente</p></div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>E-mail</th><th>CNPJ/CPF</th><th>Projetos</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${DB.clientes.map(c => {
+            const count = DB.projetos.filter(p => p.cliente === c.id).length;
+            return `
+              <tr>
+                <td style="font-weight:500">${c.nome}</td>
+                <td style="color:var(--text2)">${c.email || '—'}</td>
+                <td style="font-family:'DM Mono',monospace;font-size:12px">${c.doc || '—'}</td>
+                <td style="color:var(--text2)">${count}</td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm" onclick="editarCliente('${c.id}')">Editar</button>
+                    <button class="btn btn-sm btn-danger" onclick="excluirCliente('${c.id}')">Excluir</button>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function editarCliente(id) {
+  const c = getCliente(id);
+  if (!c) return;
+  document.getElementById('cli-id').value = c.id;
+  document.getElementById('cli-nome').value = c.nome;
+  document.getElementById('cli-email').value = c.email || '';
+  document.getElementById('cli-doc').value = c.doc || '';
+  openModal('modal-cliente');
+}
+
+function excluirCliente(id) {
+  if (!confirm('Excluir este cliente?')) return;
+  DB.clientes = DB.clientes.filter(c => c.id !== id);
+  save();
+  renderClientes();
+}
+
+// ==================== IMPOSTOS ====================
+
+function renderImpostos() {
+  const el = document.getElementById('lista-impostos');
+  if (DB.impostos.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>Nenhum imposto cadastrado</p></div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Alíquota padrão</th><th>Projetos usando</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${DB.impostos.map(i => {
+            const count = DB.projetos.filter(p => p.impostoId === i.id).length;
+            return `
+              <tr>
+                <td style="font-weight:500">${i.nome}</td>
+                <td><span class="badge badge-red">${i.pct}%</span></td>
+                <td style="color:var(--text2)">${count}</td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm" onclick="editarImposto('${i.id}')">Editar</button>
+                    <button class="btn btn-sm btn-danger" onclick="excluirImposto('${i.id}')">Excluir</button>
+                  </div>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function editarImposto(id) {
+  const i = getImposto(id);
+  if (!i) return;
+  document.getElementById('imp-id').value = i.id;
+  document.getElementById('imp-nome').value = i.nome;
+  document.getElementById('imp-pct').value = i.pct;
+  openModal('modal-imposto');
+}
+
+function excluirImposto(id) {
+  if (!confirm('Excluir este imposto?')) return;
+  DB.impostos = DB.impostos.filter(i => i.id !== id);
+  DB.projetos.forEach(p => { if (p.impostoId === id) { p.impostoId = ''; } });
+  save();
+  renderImpostos();
+}
+
+// ==================== FORNECEDORES ====================
+
+let _lancModalOpen = false; // flag to reopen lancamento modal after creating fornecedor
+
+function renderFornecedores() {
+  const el = document.getElementById('lista-fornecedores');
+  if (DB.fornecedores.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>Nenhum fornecedor cadastrado</p></div>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Nome</th><th>CNPJ/CPF</th><th>Categoria padrão</th><th>Lançamentos</th><th>Total pago</th><th>Ações</th></tr></thead>
+    <tbody>
+      ${DB.fornecedores.map(f => {
+        const lancs = DB.lancamentos.filter(l => l.fornecedor === f.id && l.tipo === 'custo');
+        const total = lancs.reduce((s, l) => s + (l.valor || 0), 0);
+        const cat = getCategoria(f.categoria);
+        return `<tr>
+          <td style="font-weight:500">${f.nome}</td>
+          <td style="font-family:'DM Mono',monospace;font-size:12px">${f.doc || '—'}</td>
+          <td>${cat ? catBadge(f.categoria) : '<span style="color:var(--text3)">—</span>'}</td>
+          <td style="color:var(--text2)">${lancs.length}</td>
+          <td class="amount-negative">${total > 0 ? '−'+fmt(total) : '—'}</td>
+          <td><div style="display:flex;gap:4px">
+            <button class="btn btn-sm" onclick="editarFornecedor('${f.id}')">Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="excluirFornecedor('${f.id}')">Excluir</button>
+          </div></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function resetFornecedorModal() {
+  document.getElementById('forn-id').value = '';
+  document.getElementById('modal-forn-title').textContent = 'Novo fornecedor';
+  document.getElementById('forn-nome').value = '';
+  document.getElementById('forn-doc').value = '';
+  document.getElementById('forn-obs').value = '';
+  populateSelectEl('forn-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
+}
+
+function editarFornecedor(id) {
+  const f = getFornecedor(id);
+  if (!f) return;
+  // Set all fields BEFORE opening to avoid openModal reset logic
+  document.getElementById('forn-id').value = f.id;
+  document.getElementById('modal-forn-title').textContent = 'Editar fornecedor';
+  document.getElementById('forn-nome').value = f.nome;
+  document.getElementById('forn-doc').value = f.doc || '';
+  document.getElementById('forn-obs').value = f.obs || '';
+  populateSelectEl('forn-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
+  document.getElementById('forn-categoria').value = f.categoria || '';
+  // Open directly without going through openModal reset logic
+  document.getElementById('modal-fornecedor').classList.add('open');
+}
+
+function excluirFornecedor(id) {
+  if (!confirm('Excluir este fornecedor? Os lançamentos associados serão desvinculados.')) return;
+  DB.fornecedores = DB.fornecedores.filter(f => f.id !== id);
+  DB.lancamentos.forEach(l => { if (l.fornecedor === id) l.fornecedor = ''; });
+  save();
+  renderFornecedores();
+}
+
+function salvarFornecedor() {
+  const id = document.getElementById('forn-id').value;
+  const nome = document.getElementById('forn-nome').value.trim();
+  const doc = document.getElementById('forn-doc').value.trim();
+  const categoria = document.getElementById('forn-categoria').value;
+  const obs = document.getElementById('forn-obs').value.trim();
+  if (!nome) { alert('Informe o nome do fornecedor.'); return; }
+  let newId = id;
+  if (id) {
+    const f = getFornecedor(id);
+    if (f) Object.assign(f, { nome, doc, categoria, obs });
+  } else {
+    newId = uid();
+    DB.fornecedores.push({ id: newId, nome, doc, categoria, obs });
+  }
+  save();
+  closeFornecedorModal();
+  if (document.getElementById('page-fornecedores').classList.contains('active')) renderFornecedores();
+}
+
+function closeFornecedorModal() {
+  document.getElementById('modal-fornecedor').classList.remove('open');
+  document.getElementById('forn-id').value = '';
+  // If opened from lancamento modal, reopen it and refresh fornecedor list
+  if (_lancModalOpen) {
+    _lancModalOpen = false;
+    populateSelectEl('lanc-fornecedor', DB.fornecedores, 'id', 'nome', '— Selecione —');
+    document.getElementById('modal-lancamento').classList.add('open');
+  }
+}
+
+// ==================== EXPORT / IMPORT ====================
+
+function exportarJSON() {
+  const json = JSON.stringify(DB, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `financi_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportarCSV() {
+  const cols = ['Nº','Data','Tipo','Descrição','Valor','Categoria','Projeto','Fornecedor','Origem','NF','Observação'];
+  const rows = DB.lancamentos.map(l => {
+    const cat = getCategoria(l.categoria);
+    const proj = getProjeto(l.projeto);
+    const forn = getFornecedor(l.fornecedor);
+    return [
+      l.transferNum || '',
+      fmtDate(l.data),
+      l.tipo === 'custo' ? 'Custo' : 'Receita',
+      '"' + (l.descricao || '').replace(/"/g, '""') + '"',
+      String(l.valor || 0).replace('.',','),
+      '"' + (cat ? cat.nome : '') + '"',
+      '"' + (proj ? proj.nome : '') + '"',
+      '"' + (forn ? forn.nome : '') + '"',
+      l.origem || '',
+      l.nf ? (l.nf.driveUrl || l.nf.name || 'Sim') : 'Não',
+      '"' + (l.obs || '').replace(/"/g, '""') + '"',
+    ].join(';');
+  });
+  const csv = [cols.join(';'), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `financi_lancamentos_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importarJSON() {
+  document.getElementById('json-import-input').click();
+}
+
+function handleJSONImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported.lancamentos || !imported.categorias) {
+        alert('Arquivo JSON inválido — estrutura não reconhecida.'); return;
+      }
+      if (!confirm(`Importar dados do arquivo "${file.name}"?\n\nIsso vai SUBSTITUIR todos os dados atuais. Tem certeza?`)) return;
+      DB = imported;
+      // ensure fornecedores array exists
+      if (!DB.fornecedores) DB.fornecedores = [];
+      save();
+      navigateToPage('dashboard');
+      alert('Dados importados com sucesso!');
+    } catch(err) {
+      alert('Erro ao ler o arquivo: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ==================== SAVE ACTIONS ====================
+
+function salvarLancamento() {
+  const id = document.getElementById('lanc-id').value;
+  const data = document.getElementById('lanc-data').value;
+  const tipo = document.getElementById('lanc-tipo').value;
+  const descricao = document.getElementById('lanc-descricao').value.trim();
+  const valor = parseFloat(document.getElementById('lanc-valor').value);
+  const categoria = document.getElementById('lanc-categoria').value;
+  const projeto = document.getElementById('lanc-projeto').value;
+  const origem = document.getElementById('lanc-origem').value;
+  const fornecedor = document.getElementById('lanc-fornecedor').value;
+  const obs = document.getElementById('lanc-obs').value.trim();
+
+  if (!data || !descricao || isNaN(valor) || valor <= 0) {
+    alert('Preencha data, descrição e valor.');
+    return;
+  }
+
+  if (id) {
+    const lanc = DB.lancamentos.find(l => l.id === id);
+    if (lanc) {
+      lanc.data = data; lanc.tipo = tipo; lanc.descricao = descricao;
+      lanc.valor = valor; lanc.categoria = categoria; lanc.projeto = projeto;
+      lanc.fornecedor = fornecedor; lanc.origem = origem; lanc.obs = obs;
+      if (pendingNF) {
+        lanc.nf = pendingNF;
+        const fileRef = pendingNF.file;
+        pendingNF = null;
+        if (fileRef) uploadNFToDrive(lanc.id, fileRef, lanc.transferNum, projeto);
+      }
+    }
+  } else {
+    const num = '2026' + String(DB.lancCounter++).padStart(3, '0');
+    const newLanc = { id: uid(), data, tipo, descricao, valor, categoria, projeto, fornecedor, origem, obs, transferNum: num, nf: pendingNF || null };
+    const fileRef = newLanc.nf ? newLanc.nf.file : null;
+    pendingNF = null;
+    DB.lancamentos.push(newLanc);
+    if (fileRef) uploadNFToDrive(newLanc.id, fileRef, newLanc.transferNum, projeto);
+  }
+
+  save();
+  closeModal('modal-lancamento');
+  renderLancamentos();
+  renderDashboard();
+  pendingNF = null;
+}
+
+function salvarProjeto() {
+  const id = document.getElementById('proj-id').value;
+  const nome = document.getElementById('proj-nome').value.trim();
+  const cliente = document.getElementById('proj-cliente').value;
+  const receita = parseFloat(document.getElementById('proj-receita').value) || 0;
+  const status = document.getElementById('proj-status').value;
+  const inicio = document.getElementById('proj-inicio').value;
+  const termino = document.getElementById('proj-termino').value;
+  const obs = document.getElementById('proj-obs').value;
+  const impostoId = document.getElementById('proj-imposto').value;
+  const impostoPctRaw = document.getElementById('proj-imposto-pct').value;
+  const impostoPct = impostoPctRaw !== '' ? parseFloat(impostoPctRaw) : null;
+
+  if (!nome) { alert('Informe o nome do projeto.'); return; }
+
+  const categorias = selectedProjCats;
+
+  if (id) {
+    const p = getProjeto(id);
+    if (p) {
+      Object.assign(p, { nome, cliente, receita, status, inicio, termino, obs, impostoId, impostoPct, categorias });
+    }
+  } else {
+    DB.projetos.push({ id: uid(), nome, cliente, receita, status, inicio, termino, obs, impostoId, impostoPct, categorias });
+  }
+
+  save();
+  closeModal('modal-projeto');
+  renderProjetos();
+}
+
+function salvarCategoria() {
+  const id = document.getElementById('cat-id').value;
+  const nome = document.getElementById('cat-nome').value.trim();
+  const cor = document.getElementById('cat-cor').value;
+  if (!nome) { alert('Informe o nome.'); return; }
+  if (id) {
+    const c = getCategoria(id);
+    if (c) { c.nome = nome; c.cor = cor; }
+  } else {
+    DB.categorias.push({ id: uid(), nome, cor });
+  }
+  save();
+  closeModal('modal-categoria');
+  renderCategorias();
+}
+
+function salvarCliente() {
+  const id = document.getElementById('cli-id').value;
+  const nome = document.getElementById('cli-nome').value.trim();
+  const email = document.getElementById('cli-email').value.trim();
+  const doc = document.getElementById('cli-doc').value.trim();
+  if (!nome) { alert('Informe o nome.'); return; }
+  if (id) {
+    const c = getCliente(id);
+    if (c) { c.nome = nome; c.email = email; c.doc = doc; }
+  } else {
+    DB.clientes.push({ id: uid(), nome, email, doc });
+  }
+  save();
+  closeModal('modal-cliente');
+  renderClientes();
+}
+
+function salvarImposto() {
+  const id = document.getElementById('imp-id').value;
+  const nome = document.getElementById('imp-nome').value.trim();
+  const pct = parseFloat(document.getElementById('imp-pct').value) || 0;
+  if (!nome) { alert('Informe o nome.'); return; }
+  if (id) {
+    const i = getImposto(id);
+    if (i) { i.nome = nome; i.pct = pct; }
+  } else {
+    DB.impostos.push({ id: uid(), nome, pct });
+  }
+  save();
+  closeModal('modal-imposto');
+  renderImpostos();
+}
+
+// ==================== MODAL HELPERS ====================
+
+function resetLancamentoModal() {
+  document.getElementById('lanc-id').value = '';
+  document.getElementById('modal-lanc-title').textContent = 'Novo lançamento';
+  document.getElementById('lanc-data').value = new Date().toISOString().split('T')[0];
+  document.getElementById('lanc-tipo').value = 'custo';
+  document.getElementById('lanc-descricao').value = '';
+  document.getElementById('lanc-valor').value = '';
+  document.getElementById('lanc-obs').value = '';
+  document.getElementById('nf-filename').textContent = 'Anexar NF (PDF, imagem)';
+  document.getElementById('nf-upload-status').style.display = 'none';
+  populateSelectEl('lanc-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
+  populateSelectEl('lanc-projeto', DB.projetos, 'id', 'nome', '— Selecione —');
+  populateSelectEl('lanc-fornecedor', DB.fornecedores, 'id', 'nome', '— Selecione —');
+  pendingNF = null;
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'modal-lancamento') {
+    // Only reset if NOT being called from editarLancamento (which sets lanc-id before calling openModal)
+    if (!document.getElementById('lanc-id').value) {
+      resetLancamentoModal();
+    }
+  }
+  if (id === 'modal-projeto') {
+    if (!document.getElementById('proj-id').value) {
+      document.getElementById('modal-proj-title').textContent = 'Novo projeto';
+      document.getElementById('proj-id').value = '';
+      document.getElementById('proj-nome').value = '';
+      document.getElementById('proj-receita').value = '';
+      document.getElementById('proj-status').value = 'ativo';
+      document.getElementById('proj-inicio').value = '';
+      document.getElementById('proj-termino').value = '';
+      document.getElementById('proj-obs').value = '';
+      document.getElementById('proj-imposto-pct').value = '';
+    }
+    populateSelectEl('proj-cliente', DB.clientes, 'id', 'nome', '— Selecione —');
+    populateSelectEl('proj-imposto', DB.impostos, 'id', 'nome', 'Nenhum', (i) => `${i.nome} (${i.pct}%)`);
+    if (!document.getElementById('proj-id').value) {
+      selectedProjCats = [];
+      renderProjCategorias([]);
+    }
+  }
+  if (id === 'modal-fornecedor') {
+    if (!document.getElementById('forn-id').value) {
+      document.getElementById('modal-forn-title').textContent = 'Novo fornecedor';
+      document.getElementById('forn-id').value = '';
+      document.getElementById('forn-nome').value = '';
+      document.getElementById('forn-doc').value = '';
+      document.getElementById('forn-obs').value = '';
+    }
+    populateSelectEl('forn-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
+    if (document.getElementById('forn-id').value) {
+      const f = getFornecedor(document.getElementById('forn-id').value);
+      if (f) document.getElementById('forn-categoria').value = f.categoria || '';
+    }
+  }
+  if (id === 'modal-categoria') {
+    if (!document.getElementById('cat-id').value) {
+      document.getElementById('cat-nome').value = '';
+      document.getElementById('cat-cor').value = 'green';
+    }
+  }
+  if (id === 'modal-cliente') {
+    if (!document.getElementById('cli-id').value) {
+      document.getElementById('cli-nome').value = '';
+      document.getElementById('cli-email').value = '';
+      document.getElementById('cli-doc').value = '';
+    }
+  }
+  if (id === 'modal-imposto') {
+    if (!document.getElementById('imp-id').value) {
+      document.getElementById('imp-nome').value = '';
+      document.getElementById('imp-pct').value = '';
+    }
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  // Reset IDs
+  ['cat-id','cli-id','imp-id','proj-id','lanc-id','forn-id'].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) el.value = '';
+  });
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ==================== SELECT HELPERS ====================
+
+function populateSelect(id, items, valKey, labelKey, placeholder) {
+  const sel = document.getElementById(id);
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    items.map(i => `<option value="${i[valKey]}">${i[labelKey]}</option>`).join('');
+  sel.value = current;
+}
+
+function populateSelectEl(id, items, valKey, labelKey, placeholder, labelFn) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    items.map(i => `<option value="${i[valKey]}">${labelFn ? labelFn(i) : i[labelKey]}</option>`).join('');
+}
+
+// ==================== PROJ CATEGORIAS TAGS ====================
+
+let selectedProjCats = [];
+
+function renderProjCategorias(initial) {
+  if (initial !== undefined) selectedProjCats = [...initial];
+  const container = document.getElementById('proj-categorias-tags');
+  container.innerHTML = '';
+
+  DB.categorias.forEach(cat => {
+    const isSelected = selectedProjCats.includes(cat.id);
+    const tag = document.createElement('span');
+    tag.className = `tag ${isSelected ? 'selected' : ''}`;
+    tag.textContent = cat.nome;
+    tag.onclick = () => {
+      if (selectedProjCats.includes(cat.id)) {
+        selectedProjCats = selectedProjCats.filter(x => x !== cat.id);
+      } else {
+        selectedProjCats.push(cat.id);
+      }
+      renderProjCategorias();
+    };
+    container.appendChild(tag);
+  });
+
+  if (DB.categorias.length === 0) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text3)">Crie categorias primeiro</span>';
+  }
+}
+
+// ==================== NF HANDLING ====================
+
+let pendingNF = null;
+
+function handleNFSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const name = file.name;
+  document.getElementById('nf-filename').textContent = name;
+  pendingNF = { name, file, driveUrl: null };
+
+  // Show uploading status
+  document.getElementById('nf-upload-status').style.display = 'flex';
+  document.getElementById('nf-status-text').textContent = 'Pronto para envio — será carregado ao salvar';
+}
+
+// ==================== GOOGLE DRIVE AUTH BUTTON ====================
+
+function autenticarDrive() {
+  getDriveToken().then(token => {
+    if (token) {
+      document.getElementById('drive-auth-btn').style.display = 'none';
+      const statusEl = document.getElementById('drive-status');
+      statusEl.style.display = 'flex';
+      statusEl.style.alignItems = 'center';
+      statusEl.style.gap = '4px';
+      statusEl.innerHTML = '<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="var(--accent)"/></svg> Drive conectado ✓';
+      statusEl.style.color = 'var(--accent)';
+    } else {
+      alert('Autenticação cancelada ou Client ID não configurado.');
+    }
+  });
+}
+
+// Check Drive status on load
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    if (_driveToken) {
+      document.getElementById('drive-auth-btn').style.display = 'none';
+      const statusEl = document.getElementById('drive-status');
+      if (statusEl) { statusEl.style.display = 'flex'; statusEl.innerHTML = '<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="var(--accent)"/></svg> Drive ✓'; }
+    }
+  }, 1500);
+});
+
+// ==================== GOOGLE DRIVE UPLOAD (Google Identity Services) ====================
+const DRIVE_FOLDER_ID = '1Z57yC35cjZl41_---nsayNMlF1_VWpVp';
+
+// ─────────────────────────────────────────────────────────────────────────
+// CONFIGURE AQUI: Cole seu Google OAuth2 Client ID
+// Google Cloud Console → APIs & Services → Credentials → Create OAuth 2.0 Client ID
+// Tipo: "Web application" → Authorized JS origins: adicione a URL onde o HTML está hospedado
+// (ex: http://localhost:8080 para testes locais, ou sua URL pública)
+// ─────────────────────────────────────────────────────────────────────────
+const GOOGLE_CLIENT_ID = 'COLE_SEU_GOOGLE_CLIENT_ID_AQUI';
+// ─────────────────────────────────────────────────────────────────────────
+
+let _driveToken = null;
+let _driveTokenExpiry = 0;
+let _tokenClient = null;
+let _tokenResolve = null;
+
+function initGoogleIdentity() {
+  if (!window.google || GOOGLE_CLIENT_ID === 'COLE_SEU_GOOGLE_CLIENT_ID_AQUI') return;
+  _tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: (response) => {
+      if (response.access_token) {
+        _driveToken = response.access_token;
+        _driveTokenExpiry = Date.now() + (response.expires_in || 3600) * 1000;
+      }
+      if (_tokenResolve) { _tokenResolve(_driveToken); _tokenResolve = null; }
+    },
+    error_callback: (err) => {
+      console.warn('Google OAuth error:', err);
+      if (_tokenResolve) { _tokenResolve(null); _tokenResolve = null; }
+    }
+  });
+}
+
+// Call initGoogleIdentity after GIS script loads
+if (document.readyState === 'complete') {
+  setTimeout(initGoogleIdentity, 500);
+} else {
+  window.addEventListener('load', () => setTimeout(initGoogleIdentity, 500));
+}
+
+async function getDriveToken() {
+  // Return cached token if still valid (5 min buffer)
+  if (_driveToken && Date.now() < _driveTokenExpiry - 300000) return _driveToken;
+  if (!_tokenClient) {
+    alert('Configure o Google Client ID para enviar NFs ao Drive.\nEdite a constante GOOGLE_CLIENT_ID no arquivo HTML.');
+    return null;
+  }
+  return new Promise((resolve) => {
+    _tokenResolve = resolve;
+    // If we have an expired token, skip consent screen
+    if (_driveToken) {
+      _tokenClient.requestAccessToken({ prompt: '' });
+    } else {
+      _tokenClient.requestAccessToken({ prompt: 'consent' });
+    }
+  });
+}
+
+async function uploadNFToDrive(lancId, file, transferNum, projetoId) {
+  const lanc = DB.lancamentos.find(l => l.id === lancId);
+  if (!lanc) return;
+
+  // Save local preview URL immediately (so NF is clickable while uploading)
+  if (lanc.nf && !lanc.nf.localUrl) {
+    lanc.nf.localUrl = URL.createObjectURL(file);
+    save();
+  }
+
+  // Build filename: NNNN_NomeDoProjeto.ext
+  const proj = getProjeto(projetoId);
+  const projSlug = proj
+    ? proj.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9\s]/g,'').trim().replace(/\s+/g,'_')
+    : 'SemProjeto';
+  const ext = file.name.split('.').pop().toLowerCase();
+  const nomeArquivo = `${transferNum}_${projSlug}.${ext}`;
+
+  // Show uploading badge
+  if (lanc.nf) { lanc.nf.uploading = true; lanc.nf.uploadMsg = 'Enviando para Drive...'; }
+  renderLancamentos(); renderDashboard();
+
+  try {
+    const token = await getDriveToken();
+    if (!token) {
+      if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.uploadMsg = ''; }
+      save(); renderLancamentos(); renderDashboard();
+      return;
+    }
+
+    // Multipart upload to Drive
+    const metadata = JSON.stringify({ name: nomeArquivo, parents: [DRIVE_FOLDER_ID] });
+    const boundary = 'financi_boundary_' + Date.now();
+    const body = [
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+      `--${boundary}\r\nContent-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`,
+    ];
+    // Build multipart body as ArrayBuffer
+    const enc = new TextEncoder();
+    const part1 = enc.encode(body[0]);
+    const part2 = enc.encode(body[1]);
+    const fileBuf = await file.arrayBuffer();
+    const part3 = enc.encode(`\r\n--${boundary}--`);
+    const combined = new Uint8Array(part1.length + part2.length + fileBuf.byteLength + part3.length);
+    combined.set(part1, 0);
+    combined.set(part2, part1.length);
+    combined.set(new Uint8Array(fileBuf), part1.length + part2.length);
+    combined.set(part3, part1.length + part2.length + fileBuf.byteLength);
+
+    const res = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,name',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: combined,
+      }
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      if (lanc.nf) {
+        lanc.nf.driveUrl = data.webViewLink;
+        lanc.nf.driveId = data.id;
+        lanc.nf.driveName = data.name;
+        lanc.nf.uploading = false;
+        lanc.nf.uploadMsg = '';
+        lanc.nf.file = null; // drop the File reference
+      }
+      console.log(`✅ NF enviada: ${nomeArquivo} → Drive`);
+    } else {
+      const errText = await res.text();
+      console.error('Drive upload error:', res.status, errText);
+      if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.uploadMsg = 'Erro no upload'; }
+    }
+  } catch(e) {
+    console.error('uploadNFToDrive exception:', e);
+    if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.uploadMsg = 'Erro: ' + e.message; }
+  }
+
+  save(); renderLancamentos(); renderDashboard();
+}
+
+// ==================== INIT ====================
+
+// 1. Load synchronously from localStorage (instant render)
+load();
+
+// 2. Render immediately with local data
+renderDashboard();
+
+// 3. After Firebase resolves, merge cloud data if it's better
+loadFromCloud();
+
+// Keep filters populated
+document.getElementById('filter-projeto').addEventListener('focus', () => {
+  populateSelect('filter-projeto', DB.projetos, 'id', 'nome', 'Todos os projetos');
+});
+
+console.log('%c Financi — Gestão Financeira ', 'background:#1a6b4a;color:white;font-size:14px;padding:4px 8px;border-radius:4px');
+console.log(`📊 ${DB.lancamentos?.length || 0} lançamentos | ${DB.fornecedores?.length || 0} fornecedores`);
+</script>
+</body>
+</html>
