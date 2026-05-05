@@ -8,10 +8,10 @@
 
   <!-- Firebase Realtime Database (plano gratuito Spark) -->
   <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { initializeApp }       from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
     import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 
-    // ── Credenciais do projeto Firebase ───────────────────────────────────
+    // ── Credenciais ───────────────────────────────────────────────────────
     const FIREBASE_CONFIG = {
       apiKey:            "AIzaSyDs1cbRF_Gx2whROtMoBwHmm0chCtujyHc",
       authDomain:        "monosup-financi.firebaseapp.com",
@@ -19,120 +19,97 @@
       storageBucket:     "monosup-financi.firebasestorage.app",
       messagingSenderId: "550065607574",
       appId:             "1:550065607574:web:b6f38e996e445d1ee143b7",
-      // ── Cole aqui a URL do Realtime Database após criar no console ──────
-      // Exemplo: "https://monosup-financi-default-rtdb.firebaseio.com"
       databaseURL:       "https://monosup-financi-default-rtdb.firebaseio.com",
     };
+    const DB_PATH = 'financi/dados2026';
     // ─────────────────────────────────────────────────────────────────────
 
-    const DB_PATH = 'financi/dados2026';
-    const configured = FIREBASE_CONFIG.databaseURL !== 'COLE_A_URL_DO_REALTIME_DATABASE_AQUI';
+    // Shared state (via window so main script can access)
+    window._rtdbReady   = false;
+    window._lastSaveVer = null;   // version tag of OUR last save — skip echoes
+    window._saveTimeout = null;
+    window._pendingSync = null;   // holds incoming data while app initialises
 
-    let rtdb = null;
-    let _saveTimeout = null;
-    let _lastSaveVersion = null;
-    let _listening = false;
+    function setSyncStatus(state, text) {
+      const el = document.getElementById('sync-status');
+      if (!el) return;
+      const dot = { ok:'var(--accent)', warn:'var(--amber)', err:'var(--red)', off:'var(--text3)' };
+      el.innerHTML = `<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="${dot[state]||dot.off}"/></svg> ${text}`;
+    }
 
-    async function initFirebase() {
-      if (!configured) {
-        updateSyncStatus('local', 'Local — configure o Realtime Database');
-        return;
+    function applyIncoming(raw) {
+      if (!raw || !raw.payload) return;
+      let incoming;
+      try { incoming = JSON.parse(raw.payload); } catch(e) { return; }
+
+      // Skip echo from our own save
+      if (window._lastSaveVer && incoming._v === window._lastSaveVer) return;
+      // Skip if cloud has fewer lancamentos than what we already have
+      const cloudCount = incoming.lancamentos?.length || 0;
+      const localCount = window._DB_LOCAL_COUNT || 0;
+      if (cloudCount < localCount) return;
+
+      if (typeof window.applyCloudUpdate === 'function') {
+        window.applyCloudUpdate(incoming);
+      } else {
+        // App not ready yet — queue it
+        window._pendingSync = incoming;
       }
+      setSyncStatus('ok', `☁️ Nuvem — ${cloudCount} lançamentos`);
+    }
+
+    async function init() {
+      setSyncStatus('warn', 'Conectando...');
       try {
-        updateSyncStatus('connecting', 'Conectando...');
-        const app = initializeApp(FIREBASE_CONFIG);
-        rtdb = getDatabase(app);
+        const app  = initializeApp(FIREBASE_CONFIG);
+        const rtdb = getDatabase(app);
+        const dbRef = ref(rtdb, DB_PATH);
 
-        // ── Load initial data ────────────────────────────────────────────
-        const snap = await get(ref(rtdb, DB_PATH));
+        // ── Expose save function to main script ───────────────────────────
+        window._cloudSave = async (data) => {
+          clearTimeout(window._saveTimeout);
+          window._saveTimeout = setTimeout(async () => {
+            try {
+              setSyncStatus('warn', 'Salvando...');
+              const v = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+              window._lastSaveVer = v;
+              data._v = v;
+              await set(dbRef, { payload: JSON.stringify(data), at: Date.now() });
+              window._DB_LOCAL_COUNT = data.lancamentos?.length || 0;
+              setSyncStatus('ok', `☁️ Salvo — ${window._DB_LOCAL_COUNT} lançamentos`);
+            } catch(e) {
+              console.error('RTDB save:', e.message);
+              setSyncStatus('err', 'Erro ao salvar na nuvem');
+            }
+          }, 1200); // debounce 1.2s
+        };
+
+        // ── Load once then listen ─────────────────────────────────────────
+        const snap = await get(dbRef);
         if (snap.exists()) {
-          const raw = snap.val();
-          if (raw && raw.payload) {
-            try {
-              window._DB_CLOUD = JSON.parse(raw.payload);
-              console.log('☁️ Dados carregados da nuvem');
-            } catch(e) { console.warn('parse error', e); }
-          }
+          window._DB_CLOUD = snap.val();
+          applyIncoming(snap.val());
         }
+        window._rtdbReady = true;
+        if (window._firebaseReadyResolve) window._firebaseReadyResolve();
 
-        // ── Real-time listener (sync from other devices) ─────────────────
-        if (!_listening) {
-          _listening = true;
-          onValue(ref(rtdb, DB_PATH), (snap) => {
-            if (!snap.exists()) return;
-            const raw = snap.val();
-            if (!raw || !raw.payload) return;
-            try {
-              const incoming = JSON.parse(raw.payload);
-              // Skip if this update was triggered by THIS device
-              if (_lastSaveVersion && incoming._v === _lastSaveVersion) return;
-              window._DB_CLOUD = incoming;
-              if (window._applyCloudDB) window._applyCloudDB(incoming);
-              updateSyncStatus('cloud', 'Nuvem ☁️ (sincronizado)');
-            } catch(e) { console.warn('sync parse error', e); }
-          });
-        }
+        // ── Real-time listener ────────────────────────────────────────────
+        onValue(dbRef, (snap) => {
+          if (!snap.exists()) return;
+          applyIncoming(snap.val());
+        });
 
-        updateSyncStatus('cloud', 'Nuvem ☁️ (Firebase)');
+        setSyncStatus('ok', '☁️ Nuvem (Firebase)');
       } catch(e) {
-        console.error('Firebase init error:', e.message);
-        updateSyncStatus('error', 'Erro — usando local. Veja console.');
-      } finally {
-        // Always resolve so load() can proceed
+        console.error('Firebase init:', e.message);
+        setSyncStatus('err', 'Firebase offline — dados locais');
         if (window._firebaseReadyResolve) window._firebaseReadyResolve();
       }
     }
 
-    // ── Save to Realtime Database (debounced 1s) ─────────────────────────
-    window._saveToFirestore = async function(dbData) {
-      if (!rtdb || !configured) return;
-      clearTimeout(_saveTimeout);
-      _saveTimeout = setTimeout(async () => {
-        try {
-          updateSyncStatus('saving', 'Salvando na nuvem...');
-          const v = Date.now().toString(36);
-          _lastSaveVersion = v;
-          dbData._v = v;
-          // Realtime DB stores flat values — we serialize as a string payload
-          await set(ref(rtdb, DB_PATH), {
-            payload: JSON.stringify(dbData),
-            savedAt: Date.now(),
-          });
-          updateSyncStatus('cloud', 'Nuvem ☁️ (Firebase)');
-        } catch(e) {
-          console.error('RTDB save error:', e.message);
-          updateSyncStatus('error', 'Erro ao salvar na nuvem');
-        }
-      }, 1000);
-    };
-
-    function updateSyncStatus(state, text) {
-      const el = document.getElementById('sync-status');
-      if (!el) return;
-      const colors = {
-        local:      'var(--text3)',
-        connecting: 'var(--amber)',
-        cloud:      'var(--accent)',
-        saving:     'var(--amber)',
-        error:      'var(--red)',
-      };
-      el.innerHTML = `<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="${colors[state]||'var(--text3)'}"/></svg> ${text}`;
-    }
-
-    window._applyCloudDB = null;
-
-    // Promise that resolves when Firebase finishes loading (or times out)
-    window._firebaseReady = new Promise((resolve) => {
-      window._firebaseReadyResolve = resolve;
-    });
-
-    async function initAndResolve() {
-      await initFirebase();
-      // Signal ready whether we got cloud data or not
-      if (window._firebaseReadyResolve) window._firebaseReadyResolve();
-    }
-
-    document.addEventListener('DOMContentLoaded', () => initAndResolve());
+    // Expose ready promise
+    window._firebaseReady = new Promise(r => { window._firebaseReadyResolve = r; });
+    document.addEventListener('DOMContentLoaded', init);
   </script>
 
   <!-- Google Identity Services (for Drive OAuth) -->
@@ -998,8 +975,8 @@
         <li>Crie ou selecione um projeto → <strong>APIs & Services → Enable APIs</strong> → ative <em>Google Drive API</em></li>
         <li>Em <strong>Credentials → Create Credentials → OAuth 2.0 Client ID</strong></li>
         <li>Tipo: <strong>Web application</strong></li>
-        <li>Em <strong>Authorized JavaScript origins</strong> adicione a URL onde o HTML está hospedado<br>
-          <span style="font-size:11px;color:var(--text3)">(ex: <code>file://</code> não funciona — hospede em localhost ou servidor)</span></li>
+        <li>Em <strong>Authorized JavaScript origins</strong> adicione exatamente:<br>
+          <code style="font-size:11px;background:var(--surface2);padding:3px 8px;border-radius:4px;display:inline-block;margin-top:4px">https://tomas561.github.io</code></li>
         <li>Copie o Client ID e cole na constante <code>GOOGLE_CLIENT_ID</code> no script principal</li>
         <li>Clique em <strong>"🔑 Conectar Google"</strong> no topo da ferramenta antes de anexar NFs</li>
       </ol>
@@ -1674,7 +1651,7 @@ function save() {
     }));
     localStorage.setItem('financi_db', JSON.stringify(serializable));
     // 2. Save to Firestore (debounced, async)
-    if (window._saveToFirestore) window._saveToFirestore(serializable);
+    if (window._cloudSave) window._cloudSave(serializable);
   } catch(e) { console.warn('save error', e); }
 }
 
@@ -1706,50 +1683,60 @@ function load() {
     }
   } catch(e) { console.warn('localStorage load error', e); }
 
-  // Register real-time sync callback for updates from other devices
-  window._applyCloudDB = (incoming) => {
+  // Register real-time sync handler — called by Firebase module whenever cloud changes
+  window.applyCloudUpdate = (incoming) => {
     if (!incoming || !incoming.lancamentos) return;
-    applyDB('nuvem (outro dispositivo)', incoming);
+    const cloudCount = incoming.lancamentos.length;
+    const localCount = DB.lancamentos?.length || 0;
+    if (cloudCount < localCount) {
+      console.log(`🔄 Ignorado: nuvem (${cloudCount}) < local (${localCount})`);
+      return;
+    }
+    applyDB('nuvem — tempo real', incoming);
+    window._DB_LOCAL_COUNT = cloudCount;
     renderDashboard();
     const activePage = document.querySelector('.page.active');
     if (activePage) renderPage(activePage.id.replace('page-', ''));
-    console.log('🔄 Sincronizado de outro dispositivo');
+    console.log(`🔄 Sincronizado da nuvem: ${cloudCount} lançamentos`);
   };
+
+  // Flush any update that arrived before app was ready
+  if (window._pendingSync) {
+    window.applyCloudUpdate(window._pendingSync);
+    window._pendingSync = null;
+  }
 }
 
 async function loadFromCloud() {
-  // Wait up to 4 seconds for Firebase to load cloud data
+  const HTML_LANC_COUNT = 205; // lancamentos que o HTML embarca por padrão
+
+  // Wait for Firebase to finish its first fetch (max 5s)
   try {
     await Promise.race([
       window._firebaseReady || Promise.resolve(),
-      new Promise(r => setTimeout(r, 4000)),
+      new Promise(r => setTimeout(r, 5000)),
     ]);
   } catch(e) {}
 
-  if (!window._DB_CLOUD) {
-    // Cloud empty or unreachable — push local DB to cloud so other devices get it
-    console.log(`☁️ Nuvem vazia/inalcançável — enviando ${DB.lancamentos?.length} lançamentos para Firebase...`);
-    save();
-    return;
-  }
-
-  const cloudLancs = window._DB_CLOUD.lancamentos?.length || 0;
+  const cloudRaw  = window._DB_CLOUD;
+  const cloudData = cloudRaw?.payload ? JSON.parse(cloudRaw.payload) : (cloudRaw?.lancamentos ? cloudRaw : null);
+  const cloudLancs = cloudData?.lancamentos?.length || 0;
   const localLancs = DB.lancamentos?.length || 0;
-  // How many lancamentos the HTML file itself ships with (source of truth)
-  const HTML_LANC_COUNT = 205;
 
-  console.log(`☁️ Nuvem: ${cloudLancs} | Local: ${localLancs} | HTML padrão: ${HTML_LANC_COUNT}`);
+  console.log(`🔍 loadFromCloud → nuvem:${cloudLancs} local:${localLancs} html:${HTML_LANC_COUNT}`);
 
   if (cloudLancs >= HTML_LANC_COUNT) {
-    // Cloud is up to date — use it
-    applyDB('Firebase (nuvem)', window._DB_CLOUD);
+    // Cloud has full data — use it and register local count
+    applyDB('Firebase (nuvem)', cloudData);
+    window._DB_LOCAL_COUNT = cloudLancs;
     renderDashboard();
     const activePage = document.querySelector('.page.active');
     if (activePage) renderPage(activePage.id.replace('page-', ''));
   } else {
-    // Cloud is behind the HTML default — local DB (which has 205) wins, push to cloud
-    console.log(`📤 Nuvem (${cloudLancs}) desatualizada → enviando ${localLancs} lançamentos para Firebase...`);
-    save();
+    // Cloud is empty or outdated — push our full local DB to Firebase
+    console.log(`📤 Enviando ${localLancs} lançamentos para Firebase (nuvem tinha ${cloudLancs})...`);
+    window._DB_LOCAL_COUNT = localLancs;
+    save(); // this calls _cloudSave which uploads to Firebase
   }
 }
 
