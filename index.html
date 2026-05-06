@@ -2923,19 +2923,30 @@ function reenviarNFParaDrive() {
 }
 
 function autenticarDrive() {
-  getDriveToken().then(token => {
-    if (token) {
+  if (!_tokenClient) {
+    alert('Google Client ID não configurado no HTML.');
+    return;
+  }
+  showToast('Abrindo autenticação Google...', 'warn');
+  _tokenResolve = null;
+  // Request token with full consent prompt so user can see what's being authorized
+  _tokenClient.requestAccessToken({ prompt: 'consent' });
+  // Wait for callback (set in initGoogleIdentity)
+  const checkInterval = setInterval(() => {
+    if (_driveToken) {
+      clearInterval(checkInterval);
       document.getElementById('drive-auth-btn').style.display = 'none';
       const statusEl = document.getElementById('drive-status');
       statusEl.style.display = 'flex';
       statusEl.style.alignItems = 'center';
       statusEl.style.gap = '4px';
-      statusEl.innerHTML = '<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="var(--accent)"/></svg> Drive conectado ✓';
+      statusEl.innerHTML = '<svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="var(--accent)"/></svg> Drive ✓';
       statusEl.style.color = 'var(--accent)';
-    } else {
-      alert('Autenticação cancelada ou Client ID não configurado.');
+      showToast('Google Drive conectado! Agora você pode anexar NFs.', 'ok');
     }
-  });
+  }, 500);
+  // Clear check after 60s
+  setTimeout(() => clearInterval(checkInterval), 60000);
 }
 
 // Check Drive status on load
@@ -2970,7 +2981,7 @@ function initGoogleIdentity() {
   if (!window.google || GOOGLE_CLIENT_ID === 'COLE_SEU_GOOGLE_CLIENT_ID_AQUI') return;
   _tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive',
     callback: (response) => {
       if (response.access_token) {
         _driveToken = response.access_token;
@@ -3010,107 +3021,87 @@ async function getDriveToken() {
   });
 }
 
+function showToast(msg, type) {
+  // type: 'ok' | 'err' | 'warn'
+  const colors = { ok:'#1a6b4a', err:'#c0392b', warn:'#b45309' };
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:${colors[type]||colors.warn};color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.25);max-width:380px;line-height:1.5;`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
+
 async function uploadNFToDrive(lancId, file, transferNum, projetoId) {
   const lanc = DB.lancamentos.find(l => l.id === lancId);
   if (!lanc) return;
 
-  // Check if Drive is connected — token must exist (acquired via "Conectar Google" button)
-  if (!_driveToken || Date.now() >= _driveTokenExpiry - 300000) {
-    if (!_tokenClient) {
-      alert('Google Drive não configurado.');
-      return;
-    }
-    // Token missing or expired — we cannot open a popup here (browser blocks it)
-    // Show a clear message and abort
-    const driveBtn = document.getElementById('drive-auth-btn');
-    if (driveBtn) driveBtn.style.display = 'inline-flex';
-    if (lanc.nf) {
-      lanc.nf.localUrl = URL.createObjectURL(file);
-      lanc.nf.uploading = false;
-      lanc.nf.uploadMsg = '';
-      lanc.nf.driveError = true;
-    }
-    save(); renderLancamentos(); renderDashboard();
-    // Show a banner
-    showDriveBanner();
-    return;
-  }
-
-  // Save local preview URL immediately (so NF is clickable while uploading)
+  // Always create local preview URL first
   if (lanc.nf && !lanc.nf.localUrl) {
     lanc.nf.localUrl = URL.createObjectURL(file);
   }
 
-  // Build filename: NNNN_NomeDoProjeto.ext
+  // Check token — if missing, show banner and stop
+  if (!_driveToken || Date.now() >= _driveTokenExpiry - 300000) {
+    if (lanc.nf) { lanc.nf.driveError = true; lanc.nf.uploading = false; }
+    save(); renderLancamentos(); renderDashboard();
+    showDriveBanner();
+    return;
+  }
+
+  // Build filename
   const proj = getProjeto(projetoId);
   const projSlug = proj
     ? proj.nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9\s]/g,'').trim().replace(/\s+/g,'_')
     : 'SemProjeto';
-  const ext = file.name.split('.').pop().toLowerCase();
+  const ext = (file.name.split('.').pop() || 'pdf').toLowerCase();
   const nomeArquivo = `${transferNum}_${projSlug}.${ext}`;
 
-  // Show uploading badge
-  if (lanc.nf) { lanc.nf.uploading = true; lanc.nf.uploadMsg = 'Enviando para Drive...'; }
+  if (lanc.nf) { lanc.nf.uploading = true; lanc.nf.driveError = false; }
   renderLancamentos(); renderDashboard();
+  showToast(`Enviando ${nomeArquivo} para o Drive...`, 'warn');
 
   try {
-    const token = await getDriveToken();
-    if (!token) {
-      if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.uploadMsg = ''; }
-      save(); renderLancamentos(); renderDashboard();
-      return;
-    }
-
-    // Multipart upload to Drive
-    const metadata = JSON.stringify({ name: nomeArquivo, parents: [DRIVE_FOLDER_ID] });
-    const boundary = 'financi_boundary_' + Date.now();
-    const body = [
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
-      `--${boundary}\r\nContent-Type: ${file.type || 'application/octet-stream'}\r\n\r\n`,
-    ];
-    // Build multipart body as ArrayBuffer
-    const enc = new TextEncoder();
-    const part1 = enc.encode(body[0]);
-    const part2 = enc.encode(body[1]);
-    const fileBuf = await file.arrayBuffer();
-    const part3 = enc.encode(`\r\n--${boundary}--`);
-    const combined = new Uint8Array(part1.length + part2.length + fileBuf.byteLength + part3.length);
-    combined.set(part1, 0);
-    combined.set(part2, part1.length);
-    combined.set(new Uint8Array(fileBuf), part1.length + part2.length);
-    combined.set(part3, part1.length + part2.length + fileBuf.byteLength);
+    // Use simple multipart upload
+    const metadata = { name: nomeArquivo, parents: [DRIVE_FOLDER_ID] };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
 
     const res = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,name',
       {
         method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-        },
-        body: combined,
+        headers: { 'Authorization': 'Bearer ' + _driveToken },
+        body: form,
       }
     );
 
+    const responseText = await res.text();
+    console.log('Drive response:', res.status, responseText);
+
     if (res.ok) {
-      const data = await res.json();
+      const data = JSON.parse(responseText);
       if (lanc.nf) {
-        lanc.nf.driveUrl = data.webViewLink;
-        lanc.nf.driveId = data.id;
+        lanc.nf.driveUrl  = data.webViewLink;
+        lanc.nf.driveId   = data.id;
         lanc.nf.driveName = data.name;
         lanc.nf.uploading = false;
-        lanc.nf.uploadMsg = '';
-        lanc.nf.file = null; // drop the File reference
+        lanc.nf.driveError = false;
+        lanc.nf.localUrl  = null; // replace local with Drive URL
       }
-      console.log(`✅ NF enviada: ${nomeArquivo} → Drive`);
+      showToast(`✓ ${nomeArquivo} enviado ao Drive!`, 'ok');
+      console.log('✅ NF no Drive:', data.webViewLink);
     } else {
-      const errText = await res.text();
-      console.error('Drive upload error:', res.status, errText);
-      if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.uploadMsg = 'Erro no upload'; }
+      let errMsg = `Drive erro ${res.status}`;
+      try { errMsg = JSON.parse(responseText).error?.message || errMsg; } catch(e) {}
+      if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.driveError = true; }
+      showToast(`Erro ao enviar NF: ${errMsg}`, 'err');
+      console.error('Drive upload failed:', res.status, responseText);
     }
   } catch(e) {
+    if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.driveError = true; }
+    showToast(`Erro: ${e.message}`, 'err');
     console.error('uploadNFToDrive exception:', e);
-    if (lanc.nf) { lanc.nf.uploading = false; lanc.nf.uploadMsg = 'Erro: ' + e.message; }
   }
 
   save(); renderLancamentos(); renderDashboard();
