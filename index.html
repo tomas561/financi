@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Financi v1.1.1</title>
+<title>Financi v1.2.0</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <!-- Firebase Realtime Database (plano gratuito Spark) -->
@@ -870,7 +870,7 @@
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div class="login-box" id="login-box">
-    <div class="login-logo">Financi <span>v1.1.1</span></div>
+    <div class="login-logo">Financi <span>v1.2.0</span></div>
     <div class="login-sub">Gestão Financeira · Monosup Games</div>
 
     <label class="login-label" for="login-pwd">Senha de acesso</label>
@@ -895,7 +895,7 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="sidebar-brand">
-    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.1.1</span></h1>
+    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.2.0</span></h1>
     <p>Gestão Financeira</p>
   </div>
   <div class="sidebar-nav">
@@ -936,7 +936,7 @@
 <!-- MAIN CONTENT -->
 <main class="main">
 <div id="topbar" style="background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;">
-  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.1.1</span>
+  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.2.0</span>
   <div style="display:flex;align-items:center;gap:12px;">
     <span style="font-size:12px;color:var(--text3)">Dados:</span>
     <span id="sync-status" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;">
@@ -1031,9 +1031,10 @@
         <option value="">Todos os fornecedores</option>
       </select>
       <select id="filter-tipo" onchange="renderLancamentos()">
-        <option value="">Custo/Receita</option>
+        <option value="">Todos os tipos</option>
         <option value="custo">Custo</option>
         <option value="receita">Receita</option>
+        <option value="imposto">Imposto</option>
       </select>
       <div style="display:flex;align-items:center;gap:4px">
         <span style="font-size:11px;font-weight:600;color:var(--text3);white-space:nowrap">De</span>
@@ -1219,6 +1220,7 @@
           <select id="lanc-tipo">
             <option value="custo">Custo</option>
             <option value="receita">Receita</option>
+            <option value="imposto">Imposto</option>
           </select>
         </div>
       </div>
@@ -1367,20 +1369,7 @@
       <div class="divider"></div>
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">Categorias do projeto</div>
       <div id="proj-categorias-tags" class="tag-list" style="margin-bottom:12px"></div>
-      <div class="divider"></div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Imposto aplicado</div>
-      <div class="form-row" style="grid-template-columns:1fr 1fr">
-        <div class="form-group">
-          <label>Tipo de imposto</label>
-          <select id="proj-imposto">
-            <option value="">Nenhum</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>% adicional (override)</label>
-          <input type="number" id="proj-imposto-pct" step="0.1" min="0" max="100" placeholder="Usa % padrão">
-        </div>
-      </div>
+
       <div class="form-row">
         <div class="form-group">
           <label>Descrição / Observações</label>
@@ -2010,7 +1999,7 @@ function statusBadge(s) {
 }
 
 function lancamentosDoProj(projId) {
-  return DB.lancamentos.filter(l => l.projeto === projId && l.tipo === 'custo');
+  return DB.lancamentos.filter(l => l.projeto === projId);
 }
 
 function totalCustoProj(projId) {
@@ -2023,22 +2012,19 @@ function totalReceitaProj(projId) {
     .reduce((s, l) => s + (l.valor || 0), 0);
 }
 
-// impostoProj replaced by impostoVal above
-
-function impostoVal(proj) {
-  if (!proj.impostoId) return 0;
-  const imp = getImposto(proj.impostoId);
-  if (!imp) return 0;
-  const pct = proj.impostoPct != null && proj.impostoPct !== '' ? parseFloat(proj.impostoPct) : imp.pct;
-  const receita = totalReceitaProj(proj.id);
-  return receita * pct / 100;
+function totalImpostoProj(projId) {
+  return DB.lancamentos
+    .filter(l => l.projeto === projId && l.tipo === 'imposto')
+    .reduce((s, l) => s + (l.valor || 0), 0);
 }
 
+// impostoProj replaced by impostoVal above
+
 function lucroProj(proj) {
-  const receita = totalReceitaProj(proj.id);
-  const custos  = totalCustoProj(proj.id);
-  const imp     = impostoVal(proj);
-  return receita - custos - imp;
+  const receita  = totalReceitaProj(proj.id);
+  const custos   = totalCustoProj(proj.id);
+  const impostos = totalImpostoProj(proj.id);
+  return receita - custos - impostos;
 }
 
 // ==================== NAVIGATION ====================
@@ -2072,22 +2058,27 @@ function renderPage(page) {
 // ==================== DASHBOARD ====================
 
 function renderDashboard() {
-  const custos = DB.lancamentos.filter(l => l.tipo === 'custo').reduce((s,l) => s + l.valor, 0);
+  const custos   = DB.lancamentos.filter(l => l.tipo === 'custo').reduce((s,l) => s + l.valor, 0);
   const receitas = DB.lancamentos.filter(l => l.tipo === 'receita').reduce((s,l) => s + l.valor, 0);
-  const saldo = receitas - custos;
-  const nfCount = DB.lancamentos.filter(l => l.nf).length;
+  const impostos = DB.lancamentos.filter(l => l.tipo === 'imposto').reduce((s,l) => s + l.valor, 0);
+  const saldo    = receitas - custos - impostos;
+  const nfCount  = DB.lancamentos.filter(l => l.nf).length;
 
   document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card">
-      <div class="stat-label">Total de custos</div>
-      <div class="stat-value red">${fmt(custos)}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Receitas lançadas</div>
+      <div class="stat-label">Receitas</div>
       <div class="stat-value green">${fmt(receitas)}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Saldo</div>
+      <div class="stat-label">Custos</div>
+      <div class="stat-value red">−${fmt(custos)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Impostos</div>
+      <div class="stat-value" style="color:var(--amber)">−${fmt(impostos)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Resultado</div>
       <div class="stat-value ${saldo >= 0 ? 'green' : 'red'}">${fmt(saldo)}</div>
     </div>
     <div class="stat-card">
@@ -2102,7 +2093,7 @@ function renderDashboard() {
 
   // Gastos por categoria
   const catMap = {};
-  DB.lancamentos.filter(l => l.tipo === 'custo' && l.categoria).forEach(l => {
+  DB.lancamentos.filter(l => (l.tipo === 'custo' || l.tipo === 'imposto') && l.categoria).forEach(l => {
     catMap[l.categoria] = (catMap[l.categoria] || 0) + l.valor;
   });
 
@@ -2385,14 +2376,13 @@ function renderProjetos() {
   }
 
   grid.innerHTML = DB.projetos.map(p => {
-    const custos = totalCustoProj(p.id);
-    const imp = impostoVal(p);
-    const lucro = lucroProj(p);
-    const pct = receita ? Math.min(100, Math.round(custos / receita * 100)) : 0;
-    const cli = getCliente(p.cliente);
-    const cats = (p.categorias || []).map(cid => catBadge(cid)).join(' ');
-    const impObj = getImposto(p.impostoId);
-    const impPct = p.impostoPct != null && p.impostoPct !== '' ? p.impostoPct : (impObj?.pct || 0);
+    const receita = totalReceitaProj(p.id);
+    const custos  = totalCustoProj(p.id);
+    const imp     = totalImpostoProj(p.id);
+    const lucro   = lucroProj(p);
+    const pct     = receita ? Math.min(100, Math.round((custos + imp) / receita * 100)) : 0;
+    const cli     = getCliente(p.cliente);
+    const cats    = (p.categorias || []).map(cid => catBadge(cid)).join(' ');
 
     return `
       <div class="project-card" onclick="detalheProj('${p.id}')">
@@ -2418,7 +2408,7 @@ function renderProjetos() {
             <div style="font-size:14px;font-weight:600;color:var(--red);font-family:'DM Mono',monospace">${fmt(custos)}</div>
           </div>
           <div>
-            <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Imposto ${impObj ? `(${impObj.nome} ${impPct}%)` : ''}</div>
+            <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Impostos</div>
             <div style="font-size:14px;font-weight:600;color:var(--amber);font-family:'DM Mono',monospace">−${fmt(imp)}</div>
           </div>
           <div>
@@ -2444,13 +2434,11 @@ function detalheProj(id) {
   const p = getProjeto(id);
   if (!p) return;
   const lancamentos = lancamentosDoProj(id);
-  const receita = totalReceitaProj(id);
-  const custos  = totalCustoProj(id);
-  const imp     = impostoVal(p);
-  const lucro   = lucroProj(p);
-  const cli = getCliente(p.cliente);
-  const impObj = getImposto(p.impostoId);
-  const impPct = p.impostoPct != null && p.impostoPct !== '' ? p.impostoPct : (impObj?.pct || 0);
+  const receita  = totalReceitaProj(id);
+  const custos   = totalCustoProj(id);
+  const impostos = totalImpostoProj(id);
+  const lucro    = lucroProj(p);
+  const cli      = getCliente(p.cliente);
 
   // Custo por categoria
   const catMap = {};
@@ -2484,22 +2472,20 @@ function detalheProj(id) {
 
   document.getElementById('proj-det-titulo').textContent = p.nome;
   document.getElementById('proj-det-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px">
       <div class="stat-card"><div class="stat-label">Receita</div><div class="stat-value green">${fmt(receita)}</div></div>
-      <div class="stat-card"><div class="stat-label">Custos totais</div><div class="stat-value red">${fmt(custos)}</div></div>
-      <div class="stat-card"><div class="stat-label">Imposto${impObj ? ` (${impPct}%)` : ''}</div><div class="stat-value" style="color:var(--amber)">−${fmt(imp)}</div></div>
+      <div class="stat-card"><div class="stat-label">Custos</div><div class="stat-value red">−${fmt(custos)}</div></div>
+      <div class="stat-card"><div class="stat-label">Impostos</div><div class="stat-value" style="color:var(--amber)">−${fmt(impostos)}</div></div>
+      <div class="stat-card" style="background:${lucro >= 0 ? 'var(--accent-light)' : 'var(--red-light)'}">
+        <div class="stat-label">Resultado</div>
+        <div class="stat-value ${lucro >= 0 ? 'green' : 'red'}">${fmt(lucro)}</div>
+      </div>
     </div>
-    <div class="stat-card" style="margin-bottom:20px;background:${lucro >= 0 ? 'var(--accent-light)' : 'var(--red-light)'}">
-      <div class="stat-label">Lucro líquido (receita − custos − imposto)</div>
-      <div class="stat-value ${lucro >= 0 ? 'green' : 'red'}">${fmt(lucro)}</div>
-    </div>
-
     <div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:20px;flex-wrap:wrap">
       <span><strong>Cliente:</strong> ${cli ? cli.nome : '—'}</span>
       <span><strong>Status:</strong> ${p.status}</span>
       ${p.inicio ? `<span><strong>Início:</strong> ${fmtDate(p.inicio)}</span>` : ''}
       ${p.termino ? `<span><strong>Término:</strong> ${fmtDate(p.termino)}</span>` : ''}
-      ${impObj ? `<span><strong>Imposto:</strong> ${impObj.nome} ${impPct}%</span>` : ''}
     </div>
 
     <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2)">Custos por categoria</div>
@@ -2527,11 +2513,8 @@ function editarProjeto(id) {
   document.getElementById('proj-inicio').value = p.inicio || '';
   document.getElementById('proj-termino').value = p.termino || '';
   document.getElementById('proj-obs').value = p.obs || '';
-  document.getElementById('proj-imposto-pct').value = p.impostoPct != null ? p.impostoPct : '';
   populateSelectEl('proj-cliente', DB.clientes, 'id', 'nome', '— Selecione —');
   document.getElementById('proj-cliente').value = p.cliente || '';
-  populateSelectEl('proj-imposto', DB.impostos, 'id', 'nome', 'Nenhum', (i) => `${i.nome} (${i.pct}%)`);
-  document.getElementById('proj-imposto').value = p.impostoId || '';
   renderProjCategorias(p.categorias || []);
   openModal('modal-projeto');
 }
@@ -2910,29 +2893,23 @@ function salvarLancamento() {
 }
 
 function salvarProjeto() {
-  const id = document.getElementById('proj-id').value;
-  const nome = document.getElementById('proj-nome').value.trim();
+  const id     = document.getElementById('proj-id').value;
+  const nome   = (document.getElementById('proj-nome').value || '').trim();
   const cliente = document.getElementById('proj-cliente').value;
-  const receita = parseFloat(document.getElementById('proj-receita').value) || 0;
-  const status = document.getElementById('proj-status').value;
-  const inicio = document.getElementById('proj-inicio').value;
+  const status  = document.getElementById('proj-status').value;
+  const inicio  = document.getElementById('proj-inicio').value;
   const termino = document.getElementById('proj-termino').value;
-  const obs = document.getElementById('proj-obs').value;
-  const impostoId = document.getElementById('proj-imposto').value;
-  const impostoPctRaw = document.getElementById('proj-imposto-pct').value;
-  const impostoPct = impostoPctRaw !== '' ? parseFloat(impostoPctRaw) : null;
+  const obs     = document.getElementById('proj-obs').value;
 
   if (!nome) { alert('Informe o nome do projeto.'); return; }
 
-  const categorias = selectedProjCats;
+  const categorias = selectedProjCats || [];
 
   if (id) {
     const p = getProjeto(id);
-    if (p) {
-      Object.assign(p, { nome, cliente, receita, status, inicio, termino, obs, impostoId, impostoPct, categorias });
-    }
+    if (p) Object.assign(p, { nome, cliente, status, inicio, termino, obs, categorias });
   } else {
-    DB.projetos.push({ id: uid(), nome, cliente, receita, status, inicio, termino, obs, impostoId, impostoPct, categorias });
+    DB.projetos.push({ id: uid(), nome, cliente, status, inicio, termino, obs, categorias });
   }
 
   save();
@@ -3036,7 +3013,6 @@ function openModal(id) {
       document.getElementById('proj-imposto-pct').value = '';
     }
     populateSelectEl('proj-cliente', DB.clientes, 'id', 'nome', '— Selecione —');
-    populateSelectEl('proj-imposto', DB.impostos, 'id', 'nome', 'Nenhum', (i) => `${i.nome} (${i.pct}%)`);
     if (!document.getElementById('proj-id').value) {
       selectedProjCats = [];
       renderProjCategorias([]);
