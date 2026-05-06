@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Financi v1.0.0</title>
+<title>Financi v1.1.1</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <!-- Firebase Realtime Database (plano gratuito Spark) -->
@@ -614,6 +614,52 @@
   .search-bar input:focus { outline: none; box-shadow: none; }
   .search-bar svg { color: var(--text3); flex-shrink: 0; }
 
+
+  /* SEARCHABLE COMBO */
+  .combo-wrap { position: relative; }
+  .combo-input {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 8px 10px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+  }
+  .combo-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(26,107,74,0.1);
+  }
+  .combo-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  }
+  .combo-list.open { display: block; }
+  .combo-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.1s;
+  }
+  .combo-item:hover { background: var(--accent-light); color: var(--accent); }
+  .combo-item.selected { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+  .combo-item-empty { padding: 8px 12px; font-size: 12px; color: var(--text3); font-style: italic; }
+
   .nf-link {
     display: inline-flex;
     align-items: center;
@@ -824,7 +870,7 @@
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div class="login-box" id="login-box">
-    <div class="login-logo">Financi <span>v1.0.0</span></div>
+    <div class="login-logo">Financi <span>v1.1.1</span></div>
     <div class="login-sub">Gestão Financeira · Monosup Games</div>
 
     <label class="login-label" for="login-pwd">Senha de acesso</label>
@@ -849,7 +895,7 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="sidebar-brand">
-    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.0.0</span></h1>
+    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.1.1</span></h1>
     <p>Gestão Financeira</p>
   </div>
   <div class="sidebar-nav">
@@ -890,7 +936,7 @@
 <!-- MAIN CONTENT -->
 <main class="main">
 <div id="topbar" style="background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;">
-  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.0.0</span>
+  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.1.1</span>
   <div style="display:flex;align-items:center;gap:12px;">
     <span style="font-size:12px;color:var(--text3)">Dados:</span>
     <span id="sync-status" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;">
@@ -951,7 +997,7 @@
     </div>
 
     <div class="card" style="margin-top:16px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Últimos lançamentos</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Últimos 5 lançamentos</div>
       <div class="table-wrap">
         <table>
           <thead id="dash-recentes-head"></thead>
@@ -985,11 +1031,20 @@
         <option value="">Todos os fornecedores</option>
       </select>
       <select id="filter-tipo" onchange="renderLancamentos()">
-        <option value="">Todos os tipos</option>
+        <option value="">Custo/Receita</option>
         <option value="custo">Custo</option>
         <option value="receita">Receita</option>
       </select>
-      <input type="text" id="filter-busca" placeholder="Buscar..." style="max-width:180px" oninput="renderLancamentos()">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;font-weight:600;color:var(--text3);white-space:nowrap">De</span>
+        <input type="date" id="filter-data-ini" onchange="renderLancamentos()" style="font-size:12px">
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;font-weight:600;color:var(--text3);white-space:nowrap">Até</span>
+        <input type="date" id="filter-data-fim" onchange="renderLancamentos()" style="font-size:12px">
+      </div>
+      <input type="text" id="filter-busca" placeholder="Buscar..." style="max-width:150px" oninput="renderLancamentos()">
+      <button class="btn btn-sm" onclick="limparFiltros()" title="Limpar filtros">✕ Limpar</button>
     </div>
 
     <div class="card">
@@ -1003,7 +1058,7 @@
               <th>Categoria</th>
               <th>Projeto</th>
               <th>Fornecedor</th>
-              <th>Origem</th>
+              <th>Pagamento</th>
               <th>NF</th>
               <th style="text-align:right">Valor</th>
               <th>Ações</th>
@@ -1180,9 +1235,14 @@
         </div>
         <div class="form-group">
           <label>Categoria</label>
-          <select id="lanc-categoria">
-            <option value="">— Selecione —</option>
-          </select>
+          <div class="combo-wrap" id="wrap-lanc-categoria">
+            <input type="text" id="lanc-categoria-search" class="combo-input" placeholder="Buscar categoria..." autocomplete="off"
+              oninput="filterCombo('lanc-categoria','lanc-categoria-search')"
+              onfocus="openCombo('lanc-categoria')"
+              onblur="setTimeout(()=>closeCombo('lanc-categoria'),200)">
+            <div class="combo-list" id="combo-lanc-categoria"></div>
+            <input type="hidden" id="lanc-categoria">
+          </div>
         </div>
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr">
@@ -1194,18 +1254,26 @@
         </div>
         <div class="form-group">
           <label>Fornecedor</label>
-          <select id="lanc-fornecedor">
-            <option value="">— Selecione —</option>
-          </select>
+          <div class="combo-wrap" id="wrap-lanc-fornecedor">
+            <input type="text" id="lanc-fornecedor-search" class="combo-input" placeholder="Buscar fornecedor..." autocomplete="off"
+              oninput="filterCombo('lanc-fornecedor','lanc-fornecedor-search')"
+              onfocus="openCombo('lanc-fornecedor')"
+              onblur="setTimeout(()=>closeCombo('lanc-fornecedor'),200)">
+            <div class="combo-list" id="combo-lanc-fornecedor"></div>
+            <input type="hidden" id="lanc-fornecedor">
+          </div>
         </div>
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr">
         <div class="form-group">
-          <label>Origem</label>
+          <label>Tipo de pagamento</label>
           <select id="lanc-origem">
-            <option value="extrato">Extrato bancário</option>
-            <option value="cartao">Cartão de crédito</option>
-            <option value="manual">Lançamento manual</option>
+            <option value="Pix">Pix</option>
+            <option value="Crédito">Crédito</option>
+            <option value="Débito">Débito</option>
+            <option value="Boleto">Boleto</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Transferência">Transferência</option>
           </select>
         </div>
         <div class="form-group">
@@ -1222,6 +1290,10 @@
               <span id="nf-filename">Anexar NF (PDF, imagem)</span>
               <input type="file" id="lanc-nf" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="handleNFSelect(this)">
             </label>
+            <button type="button" id="nf-remove-btn" class="btn btn-sm btn-danger" style="display:none;margin-top:6px" onclick="removerNF()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/></svg>
+              Remover NF
+            </button>
           </div>
           <div id="nf-upload-status" style="display:none" class="upload-status">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="var(--accent)"><circle cx="8" cy="8" r="7"/><path d="M5 8l2 2 4-4" stroke="white" stroke-width="1.5" fill="none"/></svg>
@@ -1269,9 +1341,9 @@
         </div>
       </div>
       <div class="form-row" style="grid-template-columns:1fr 1fr">
-        <div class="form-group">
+        <div class="form-group" style="display:none">
           <label>Receita total (R$)</label>
-          <input type="number" id="proj-receita" step="0.01" min="0" placeholder="0,00">
+          <input type="number" id="proj-receita" step="0.01" min="0" placeholder="0,00" value="0">
         </div>
         <div class="form-group">
           <label>Status</label>
@@ -1425,12 +1497,6 @@
       <div class="form-group" style="margin-bottom:12px">
         <label>CNPJ / CPF</label>
         <input type="text" id="forn-doc" placeholder="00.000.000/0001-00">
-      </div>
-      <div class="form-group" style="margin-bottom:12px">
-        <label>Categoria padrão</label>
-        <select id="forn-categoria">
-          <option value="">— Selecione —</option>
-        </select>
       </div>
       <div class="form-group">
         <label>Observação</label>
@@ -1593,206 +1659,206 @@ const DB_DEFAULT = {
     { id: 'l3', data: '2026-01-15', tipo: 'custo', descricao: 'Freelancer Design', valor: 2000, categoria: 'c3', projeto: 'p1', fornecedor: '', origem: 'extrato', nf: null, obs: '', transferNum: '2026003' },
     { id: 'l4', data: '2026-02-03', tipo: 'custo', descricao: 'Ferramentas SaaS', valor: 320, categoria: 'c2', projeto: 'p2', fornecedor: '', origem: 'cartao', nf: null, obs: '', transferNum: '2026004' },
     { id: 'l5', data: '2026-02-10', tipo: 'receita', descricao: 'Honorários Fev', valor: 4000, categoria: 'c3', projeto: 'p2', fornecedor: '', origem: 'extrato', nf: null, obs: '', transferNum: '2026005' },
-    { id: 'el001', data: '2026-01-05', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 3578.23, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026006', nf: null },
-    { id: 'el002', data: '2026-01-05', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 2235.07, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026007', nf: null },
-    { id: 'el003', data: '2026-01-06', tipo: 'custo', descricao: 'Transferência - Caixa Econômica Federal', valor: 1486.78, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026008', nf: null },
+    { id: 'el001', data: '2026-01-05', tipo: 'custo', descricao: 'Sul América Companhia de Seguro Saúde', valor: 3578.23, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026006', nf: null },
+    { id: 'el002', data: '2026-01-05', tipo: 'custo', descricao: 'Receita Federal', valor: 2235.07, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026007', nf: null },
+    { id: 'el003', data: '2026-01-06', tipo: 'custo', descricao: 'CEF Matriz', valor: 1486.78, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026008', nf: null },
     { id: 'el004', data: '2026-01-06', tipo: 'custo', descricao: 'Nakalu', valor: 1872.0, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026009', nf: null },
-    { id: 'el005', data: '2026-01-09', tipo: 'custo', descricao: 'Lalamove - Logística', valor: 50.0, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026010', nf: null },
-    { id: 'el006', data: '2026-01-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 475.6, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026011', nf: null },
-    { id: 'el007', data: '2026-01-09', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos - Freelancer', valor: 475.6, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026012', nf: null },
-    { id: 'el008', data: '2026-01-13', tipo: 'custo', descricao: 'Nova Era - Fornecimento', valor: 946.8, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026013', nf: null },
+    { id: 'el005', data: '2026-01-09', tipo: 'custo', descricao: 'Lalamove Tecnologia', valor: 50.0, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026010', nf: null },
+    { id: 'el006', data: '2026-01-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon', valor: 475.6, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026011', nf: null },
+    { id: 'el007', data: '2026-01-09', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 475.6, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026012', nf: null },
+    { id: 'el008', data: '2026-01-13', tipo: 'custo', descricao: 'Nova Era', valor: 946.8, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026013', nf: null },
     { id: 'el009', data: '2026-01-13', tipo: 'custo', descricao: 'Gráfica WSM', valor: 4420.0, categoria: '', projeto: '', fornecedor: 'ef009', origem: 'extrato', obs: '', transferNum: '2026014', nf: null },
-    { id: 'el010', data: '2026-01-14', tipo: 'custo', descricao: 'Banco Topázio - Pagamento', valor: 1737.26, categoria: '', projeto: '', fornecedor: 'ef010', origem: 'extrato', obs: '', transferNum: '2026015', nf: null },
-    { id: 'el011', data: '2026-01-14', tipo: 'custo', descricao: 'Paghiper - Pagamento', valor: 728.46, categoria: '', projeto: '', fornecedor: 'ef011', origem: 'extrato', obs: '', transferNum: '2026016', nf: null },
+    { id: 'el010', data: '2026-01-14', tipo: 'custo', descricao: 'Banco Topázio / Ebanx', valor: 1737.26, categoria: '', projeto: '', fornecedor: 'ef010', origem: 'extrato', obs: '', transferNum: '2026015', nf: null },
+    { id: 'el011', data: '2026-01-14', tipo: 'custo', descricao: 'Paghiper IP', valor: 728.46, categoria: '', projeto: '', fornecedor: 'ef011', origem: 'extrato', obs: '', transferNum: '2026016', nf: null },
     { id: 'el012', data: '2026-01-15', tipo: 'custo', descricao: 'Maximus Impressão Digital', valor: 37.5, categoria: '', projeto: '', fornecedor: 'ef012', origem: 'extrato', obs: '', transferNum: '2026017', nf: null },
-    { id: 'el013', data: '2026-01-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 917.99, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026018', nf: null },
-    { id: 'el014', data: '2026-01-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 1808.27, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026019', nf: null },
-    { id: 'el015', data: '2026-01-20', tipo: 'custo', descricao: 'DARF - Receita Federal (2)', valor: 16521.94, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026020', nf: null },
-    { id: 'el016', data: '2026-01-20', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026021', nf: null },
+    { id: 'el013', data: '2026-01-20', tipo: 'custo', descricao: 'CEF Matriz', valor: 917.99, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026018', nf: null },
+    { id: 'el014', data: '2026-01-20', tipo: 'custo', descricao: 'Receita Federal', valor: 1808.27, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026019', nf: null },
+    { id: 'el015', data: '2026-01-20', tipo: 'custo', descricao: 'Receita Federal', valor: 16521.94, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026020', nf: null },
+    { id: 'el016', data: '2026-01-20', tipo: 'custo', descricao: 'Flash App', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026021', nf: null },
     { id: 'el017', data: '2026-01-21', tipo: 'custo', descricao: 'Maximus Impressão Digital', valor: 37.5, categoria: '', projeto: '', fornecedor: 'ef012', origem: 'extrato', obs: '', transferNum: '2026022', nf: null },
-    { id: 'el018', data: '2026-01-23', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026023', nf: null },
-    { id: 'el019', data: '2026-01-23', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026024', nf: null },
-    { id: 'el020', data: '2026-01-23', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026025', nf: null },
-    { id: 'el021', data: '2026-01-23', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026026', nf: null },
-    { id: 'el022', data: '2026-01-26', tipo: 'custo', descricao: 'Vindi Pagamentos Online - Taxa', valor: 13.57, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026027', nf: null },
-    { id: 'el023', data: '2026-01-27', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3500.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026028', nf: null },
-    { id: 'el024', data: '2026-01-28', tipo: 'custo', descricao: 'Fire - Serviço', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef020', origem: 'extrato', obs: '', transferNum: '2026029', nf: null },
+    { id: 'el018', data: '2026-01-23', tipo: 'custo', descricao: 'Priscilla Ariela de Assis Faria', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026023', nf: null },
+    { id: 'el019', data: '2026-01-23', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga da Silva', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026024', nf: null },
+    { id: 'el020', data: '2026-01-23', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026025', nf: null },
+    { id: 'el021', data: '2026-01-23', tipo: 'custo', descricao: 'Tomás Jordão Macul', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026026', nf: null },
+    { id: 'el022', data: '2026-01-26', tipo: 'custo', descricao: 'Vindi Pagamentos Online', valor: 13.57, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026027', nf: null },
+    { id: 'el023', data: '2026-01-27', tipo: 'custo', descricao: 'Nicolas Emerenciano', valor: 3500.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026028', nf: null },
+    { id: 'el024', data: '2026-01-28', tipo: 'custo', descricao: 'Fire', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef020', origem: 'extrato', obs: '', transferNum: '2026029', nf: null },
     { id: 'el025', data: '2026-01-28', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 180.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026030', nf: null },
-    { id: 'el026', data: '2026-01-28', tipo: 'custo', descricao: 'Safe2Pay - Pagamento', valor: 180.0, categoria: '', projeto: '', fornecedor: 'ef022', origem: 'extrato', obs: '', transferNum: '2026031', nf: null },
+    { id: 'el026', data: '2026-01-28', tipo: 'custo', descricao: 'Safe2Pay', valor: 180.0, categoria: '', projeto: '', fornecedor: 'ef022', origem: 'extrato', obs: '', transferNum: '2026031', nf: null },
     { id: 'el027', data: '2026-01-30', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 1066.66, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026032', nf: null },
-    { id: 'el028', data: '2026-02-02', tipo: 'custo', descricao: 'Bruno Ricci Borini Artero - Freelancer', valor: 1600.0, categoria: '', projeto: '', fornecedor: 'ef023', origem: 'extrato', obs: '', transferNum: '2026033', nf: null },
-    { id: 'el029', data: '2026-02-03', tipo: 'custo', descricao: 'Company Hero - RH/Benefícios', valor: 845.46, categoria: '', projeto: '', fornecedor: 'ef024', origem: 'extrato', obs: '', transferNum: '2026034', nf: null },
-    { id: 'el030', data: '2026-02-04', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 967.74, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026035', nf: null },
-    { id: 'el031', data: '2026-02-04', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 3653.36, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026036', nf: null },
-    { id: 'el032', data: '2026-02-06', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 5187.25, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026037', nf: null },
-    { id: 'el033', data: '2026-02-10', tipo: 'custo', descricao: 'Nerd Stickers - Brindes', valor: 148.5, categoria: '', projeto: '', fornecedor: 'ef027', origem: 'extrato', obs: '', transferNum: '2026038', nf: null },
-    { id: 'el034', data: '2026-02-10', tipo: 'custo', descricao: 'Nakalu - Serviço', valor: 259.2, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026039', nf: null },
+    { id: 'el028', data: '2026-02-02', tipo: 'custo', descricao: 'Bruno Ricci Borini Artero', valor: 1600.0, categoria: '', projeto: '', fornecedor: 'ef023', origem: 'extrato', obs: '', transferNum: '2026033', nf: null },
+    { id: 'el029', data: '2026-02-03', tipo: 'custo', descricao: 'Company Hero Ltda', valor: 845.46, categoria: '', projeto: '', fornecedor: 'ef024', origem: 'extrato', obs: '', transferNum: '2026034', nf: null },
+    { id: 'el030', data: '2026-02-04', tipo: 'custo', descricao: 'Andrew Melo Lima', valor: 967.74, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026035', nf: null },
+    { id: 'el031', data: '2026-02-04', tipo: 'custo', descricao: 'Sul América Companhia de Seguro Saúde', valor: 3653.36, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026036', nf: null },
+    { id: 'el032', data: '2026-02-06', tipo: 'custo', descricao: 'Pagamento Fatura Cartão', valor: 5187.25, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026037', nf: null },
+    { id: 'el033', data: '2026-02-10', tipo: 'custo', descricao: 'Nerd Stickers', valor: 148.5, categoria: '', projeto: '', fornecedor: 'ef027', origem: 'extrato', obs: '', transferNum: '2026038', nf: null },
+    { id: 'el034', data: '2026-02-10', tipo: 'custo', descricao: 'Nakalu', valor: 259.2, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026039', nf: null },
     { id: 'el035', data: '2026-02-12', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026040', nf: null },
-    { id: 'el036', data: '2026-02-18', tipo: 'custo', descricao: 'SeG Locadora de Veículos (1)', valor: 38.8, categoria: '', projeto: '', fornecedor: 'ef028', origem: 'extrato', obs: '', transferNum: '2026041', nf: null },
-    { id: 'el037', data: '2026-02-18', tipo: 'custo', descricao: 'SeG Locadora de Veículos (2)', valor: 31.15, categoria: '', projeto: '', fornecedor: 'ef028', origem: 'extrato', obs: '', transferNum: '2026042', nf: null },
-    { id: 'el038', data: '2026-02-19', tipo: 'custo', descricao: 'Plastix Personalizados - Brindes', valor: 7500.0, categoria: '', projeto: '', fornecedor: 'ef029', origem: 'extrato', obs: '', transferNum: '2026043', nf: null },
-    { id: 'el039', data: '2026-02-20', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026044', nf: null },
-    { id: 'el040', data: '2026-02-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 47084.53, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026045', nf: null },
-    { id: 'el041', data: '2026-02-20', tipo: 'custo', descricao: 'DARF - Receita Federal (2)', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026046', nf: null },
-    { id: 'el042', data: '2026-02-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026047', nf: null },
-    { id: 'el043', data: '2026-02-20', tipo: 'custo', descricao: 'Promo-Infláveis - Evento', valor: 8800.0, categoria: '', projeto: '', fornecedor: 'ef030', origem: 'extrato', obs: '', transferNum: '2026048', nf: null },
-    { id: 'el044', data: '2026-02-21', tipo: 'custo', descricao: 'Sidnei Balbino da Silva - Freelancer', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef031', origem: 'extrato', obs: '', transferNum: '2026049', nf: null },
+    { id: 'el036', data: '2026-02-18', tipo: 'custo', descricao: 'SeG Locadora de Veículos', valor: 38.8, categoria: '', projeto: '', fornecedor: 'ef028', origem: 'extrato', obs: '', transferNum: '2026041', nf: null },
+    { id: 'el037', data: '2026-02-18', tipo: 'custo', descricao: 'SeG Locadora de Veículos', valor: 31.15, categoria: '', projeto: '', fornecedor: 'ef028', origem: 'extrato', obs: '', transferNum: '2026042', nf: null },
+    { id: 'el038', data: '2026-02-19', tipo: 'custo', descricao: 'Plastix Personalizados', valor: 7500.0, categoria: '', projeto: '', fornecedor: 'ef029', origem: 'extrato', obs: '', transferNum: '2026043', nf: null },
+    { id: 'el039', data: '2026-02-20', tipo: 'custo', descricao: 'Flash App', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026044', nf: null },
+    { id: 'el040', data: '2026-02-20', tipo: 'custo', descricao: 'Receita Federal', valor: 47084.53, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026045', nf: null },
+    { id: 'el041', data: '2026-02-20', tipo: 'custo', descricao: 'Receita Federal', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026046', nf: null },
+    { id: 'el042', data: '2026-02-20', tipo: 'custo', descricao: 'CEF Matriz', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026047', nf: null },
+    { id: 'el043', data: '2026-02-20', tipo: 'custo', descricao: 'Promo-Infláveis', valor: 8800.0, categoria: '', projeto: '', fornecedor: 'ef030', origem: 'extrato', obs: '', transferNum: '2026048', nf: null },
+    { id: 'el044', data: '2026-02-21', tipo: 'custo', descricao: 'Sidnei Balbino da Silva', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef031', origem: 'extrato', obs: '', transferNum: '2026049', nf: null },
     { id: 'el045', data: '2026-02-25', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 1600.0, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026050', nf: null },
-    { id: 'el046', data: '2026-02-25', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3190.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026051', nf: null },
+    { id: 'el046', data: '2026-02-25', tipo: 'custo', descricao: 'Nicolas Emerenciano', valor: 3190.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026051', nf: null },
     { id: 'el047', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026052', nf: null },
-    { id: 'el048', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza (2)', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026053', nf: null },
-    { id: 'el049', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza (3)', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026054', nf: null },
-    { id: 'el050', data: '2026-02-25', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026055', nf: null },
-    { id: 'el051', data: '2026-02-25', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026056', nf: null },
-    { id: 'el052', data: '2026-02-25', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026057', nf: null },
-    { id: 'el053', data: '2026-02-25', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026058', nf: null },
-    { id: 'el054', data: '2026-02-25', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026059', nf: null },
-    { id: 'el055', data: '2026-02-25', tipo: 'custo', descricao: 'Leandro de Souza Mattos - Serviço', valor: 8500.0, categoria: '', projeto: '', fornecedor: 'ef033', origem: 'extrato', obs: '', transferNum: '2026060', nf: null },
-    { id: 'el056', data: '2026-02-26', tipo: 'custo', descricao: 'Promo-Infláveis - Evento', valor: 8800.0, categoria: '', projeto: '', fornecedor: 'ef030', origem: 'extrato', obs: '', transferNum: '2026061', nf: null },
+    { id: 'el048', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026053', nf: null },
+    { id: 'el049', data: '2026-02-25', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026054', nf: null },
+    { id: 'el050', data: '2026-02-25', tipo: 'custo', descricao: 'Tomás Jordão Macul', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026055', nf: null },
+    { id: 'el051', data: '2026-02-25', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026056', nf: null },
+    { id: 'el052', data: '2026-02-25', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga da Silva', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026057', nf: null },
+    { id: 'el053', data: '2026-02-25', tipo: 'custo', descricao: 'Priscilla Ariela de Assis Faria', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026058', nf: null },
+    { id: 'el054', data: '2026-02-25', tipo: 'custo', descricao: 'Andrew Melo Lima', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026059', nf: null },
+    { id: 'el055', data: '2026-02-25', tipo: 'custo', descricao: 'Leandro de Souza Mattos', valor: 8500.0, categoria: '', projeto: '', fornecedor: 'ef033', origem: 'extrato', obs: '', transferNum: '2026060', nf: null },
+    { id: 'el056', data: '2026-02-26', tipo: 'custo', descricao: 'Promo-Infláveis', valor: 8800.0, categoria: '', projeto: '', fornecedor: 'ef030', origem: 'extrato', obs: '', transferNum: '2026061', nf: null },
     { id: 'el057', data: '2026-02-26', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026062', nf: null },
-    { id: 'el058', data: '2026-03-01', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 18000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026063', nf: null },
-    { id: 'el059', data: '2026-03-02', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 197.9, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026064', nf: null },
-    { id: 'el060', data: '2026-03-02', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 826.38, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026065', nf: null },
-    { id: 'el061', data: '2026-03-02', tipo: 'custo', descricao: 'Magui Locação - Equipamentos', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef034', origem: 'extrato', obs: '', transferNum: '2026066', nf: null },
-    { id: 'el062', data: '2026-03-06', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 22838.17, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026067', nf: null },
+    { id: 'el058', data: '2026-03-01', tipo: 'custo', descricao: 'Tomás Jordão Macul', valor: 18000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026063', nf: null },
+    { id: 'el059', data: '2026-03-02', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 197.9, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026064', nf: null },
+    { id: 'el060', data: '2026-03-02', tipo: 'custo', descricao: 'Sul América Companhia de Seguro Saúde', valor: 826.38, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026065', nf: null },
+    { id: 'el061', data: '2026-03-02', tipo: 'custo', descricao: 'Magui Locação', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef034', origem: 'extrato', obs: '', transferNum: '2026066', nf: null },
+    { id: 'el062', data: '2026-03-06', tipo: 'custo', descricao: 'Pagamento Fatura Cartão', valor: 22838.17, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026067', nf: null },
     { id: 'el063', data: '2026-03-06', tipo: 'custo', descricao: 'Anholeto Premiações Corporativas', valor: 4095.75, categoria: '', projeto: '', fornecedor: 'ef035', origem: 'extrato', obs: '', transferNum: '2026068', nf: null },
     { id: 'el064', data: '2026-03-09', tipo: 'custo', descricao: 'Vindi Pagamentos Online', valor: 797.64, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026069', nf: null },
-    { id: 'el065', data: '2026-03-09', tipo: 'custo', descricao: 'Vindi Pagamentos Online (2)', valor: 125.55, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026070', nf: null },
-    { id: 'el066', data: '2026-03-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 4540.95, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026071', nf: null },
-    { id: 'el067', data: '2026-03-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer (2)', valor: 910.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026072', nf: null },
+    { id: 'el065', data: '2026-03-09', tipo: 'custo', descricao: 'Vindi Pagamentos Online', valor: 125.55, categoria: '', projeto: '', fornecedor: 'ef018', origem: 'extrato', obs: '', transferNum: '2026070', nf: null },
+    { id: 'el066', data: '2026-03-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon', valor: 4540.95, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026071', nf: null },
+    { id: 'el067', data: '2026-03-09', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon', valor: 910.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026072', nf: null },
     { id: 'el068', data: '2026-03-09', tipo: 'custo', descricao: 'Max Tours Viagens e Turismo', valor: 486.04, categoria: '', projeto: '', fornecedor: 'ef036', origem: 'extrato', obs: '', transferNum: '2026073', nf: null },
     { id: 'el069', data: '2026-03-09', tipo: 'custo', descricao: 'Luciano Florencio Barbosa', valor: 220.0, categoria: '', projeto: '', fornecedor: 'ef037', origem: 'extrato', obs: '', transferNum: '2026074', nf: null },
-    { id: 'el070', data: '2026-03-11', tipo: 'custo', descricao: 'Marcus Vinicius Viana Infante - Freelancer', valor: 1500.0, categoria: '', projeto: '', fornecedor: 'ef038', origem: 'extrato', obs: '', transferNum: '2026075', nf: null },
-    { id: 'el071', data: '2026-03-11', tipo: 'custo', descricao: 'Helielson Luiz Nascimento - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef039', origem: 'extrato', obs: '', transferNum: '2026076', nf: null },
-    { id: 'el072', data: '2026-03-11', tipo: 'custo', descricao: 'Gustavo Monteiro de Arruda - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef040', origem: 'extrato', obs: '', transferNum: '2026077', nf: null },
-    { id: 'el073', data: '2026-03-11', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 20000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026078', nf: null },
-    { id: 'el074', data: '2026-03-12', tipo: 'custo', descricao: 'Shark Brindes - Brindes/Merchandising', valor: 25681.5, categoria: '', projeto: '', fornecedor: 'ef041', origem: 'extrato', obs: '', transferNum: '2026079', nf: null },
-    { id: 'el075', data: '2026-03-17', tipo: 'custo', descricao: 'AlugueJasp - Locação', valor: 300.0, categoria: '', projeto: '', fornecedor: 'ef042', origem: 'extrato', obs: '', transferNum: '2026080', nf: null },
-    { id: 'el076', data: '2026-03-18', tipo: 'custo', descricao: 'Vitor Del Bosque Lima - Freelancer', valor: 330.0, categoria: '', projeto: '', fornecedor: 'ef043', origem: 'extrato', obs: '', transferNum: '2026081', nf: null },
-    { id: 'el077', data: '2026-03-19', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 592.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026082', nf: null },
-    { id: 'el078', data: '2026-03-19', tipo: 'custo', descricao: 'Nova Era - Fornecimento (1)', valor: 15440.0, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026083', nf: null },
-    { id: 'el079', data: '2026-03-19', tipo: 'custo', descricao: 'Nova Era - Fornecimento (2)', valor: 1467.0, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026084', nf: null },
-    { id: 'el080', data: '2026-03-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 48375.1, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026085', nf: null },
-    { id: 'el081', data: '2026-03-20', tipo: 'custo', descricao: 'Agilize Tecnologia - Contabilidade', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef045', origem: 'extrato', obs: '', transferNum: '2026086', nf: null },
-    { id: 'el082', data: '2026-03-20', tipo: 'custo', descricao: 'Jean Thiago Morais Santos - Freelancer', valor: 900.0, categoria: '', projeto: '', fornecedor: 'ef046', origem: 'extrato', obs: '', transferNum: '2026087', nf: null },
-    { id: 'el083', data: '2026-03-20', tipo: 'custo', descricao: 'Lucas Guilherme de Souza Bezerra - Freelancer', valor: 900.0, categoria: '', projeto: '', fornecedor: 'ef047', origem: 'extrato', obs: '', transferNum: '2026088', nf: null },
-    { id: 'el084', data: '2026-03-20', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026089', nf: null },
-    { id: 'el085', data: '2026-03-20', tipo: 'custo', descricao: 'DARF - Receita Federal (2)', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026090', nf: null },
-    { id: 'el086', data: '2026-03-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026091', nf: null },
-    { id: 'el087', data: '2026-03-24', tipo: 'custo', descricao: 'Magalupay - Serviço', valor: 4654.72, categoria: '', projeto: '', fornecedor: 'ef048', origem: 'extrato', obs: '', transferNum: '2026092', nf: null },
-    { id: 'el088', data: '2026-03-24', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026093', nf: null },
-    { id: 'el089', data: '2026-03-25', tipo: 'custo', descricao: 'Vina Eventos - Evento', valor: 26562.68, categoria: '', projeto: '', fornecedor: 'ef049', origem: 'extrato', obs: '', transferNum: '2026094', nf: null },
-    { id: 'el090', data: '2026-03-25', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026095', nf: null },
-    { id: 'el091', data: '2026-03-25', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026096', nf: null },
-    { id: 'el092', data: '2026-03-25', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026097', nf: null },
-    { id: 'el093', data: '2026-03-26', tipo: 'custo', descricao: 'Guilherme Henrique Queiroz Martins - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef050', origem: 'extrato', obs: '', transferNum: '2026098', nf: null },
-    { id: 'el094', data: '2026-03-26', tipo: 'custo', descricao: 'Fervo Tournament - Evento', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef051', origem: 'extrato', obs: '', transferNum: '2026099', nf: null },
+    { id: 'el070', data: '2026-03-11', tipo: 'custo', descricao: 'Marcus Vinicius Viana Infante', valor: 1500.0, categoria: '', projeto: '', fornecedor: 'ef038', origem: 'extrato', obs: '', transferNum: '2026075', nf: null },
+    { id: 'el071', data: '2026-03-11', tipo: 'custo', descricao: 'Helielson Luiz Nascimento', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef039', origem: 'extrato', obs: '', transferNum: '2026076', nf: null },
+    { id: 'el072', data: '2026-03-11', tipo: 'custo', descricao: 'Gustavo Monteiro de Arruda', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef040', origem: 'extrato', obs: '', transferNum: '2026077', nf: null },
+    { id: 'el073', data: '2026-03-11', tipo: 'custo', descricao: 'Tomás Jordão Macul', valor: 20000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026078', nf: null },
+    { id: 'el074', data: '2026-03-12', tipo: 'custo', descricao: 'Shark Brindes', valor: 25681.5, categoria: '', projeto: '', fornecedor: 'ef041', origem: 'extrato', obs: '', transferNum: '2026079', nf: null },
+    { id: 'el075', data: '2026-03-17', tipo: 'custo', descricao: 'Aluguejasp Ltda', valor: 300.0, categoria: '', projeto: '', fornecedor: 'ef042', origem: 'extrato', obs: '', transferNum: '2026080', nf: null },
+    { id: 'el076', data: '2026-03-18', tipo: 'custo', descricao: 'Vitor Del Bosque Lima', valor: 330.0, categoria: '', projeto: '', fornecedor: 'ef043', origem: 'extrato', obs: '', transferNum: '2026081', nf: null },
+    { id: 'el077', data: '2026-03-19', tipo: 'custo', descricao: 'Sharkitutes', valor: 592.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026082', nf: null },
+    { id: 'el078', data: '2026-03-19', tipo: 'custo', descricao: 'Nova Era', valor: 15440.0, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026083', nf: null },
+    { id: 'el079', data: '2026-03-19', tipo: 'custo', descricao: 'Nova Era', valor: 1467.0, categoria: '', projeto: '', fornecedor: 'ef008', origem: 'extrato', obs: '', transferNum: '2026084', nf: null },
+    { id: 'el080', data: '2026-03-20', tipo: 'custo', descricao: 'Receita Federal', valor: 48375.1, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026085', nf: null },
+    { id: 'el081', data: '2026-03-20', tipo: 'custo', descricao: 'Agilize Tecnologia Ltda', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef045', origem: 'extrato', obs: '', transferNum: '2026086', nf: null },
+    { id: 'el082', data: '2026-03-20', tipo: 'custo', descricao: 'Jean Thiago Morais Santos', valor: 900.0, categoria: '', projeto: '', fornecedor: 'ef046', origem: 'extrato', obs: '', transferNum: '2026087', nf: null },
+    { id: 'el083', data: '2026-03-20', tipo: 'custo', descricao: 'Lucas Guilherme de Souza Bezerra', valor: 900.0, categoria: '', projeto: '', fornecedor: 'ef047', origem: 'extrato', obs: '', transferNum: '2026088', nf: null },
+    { id: 'el084', data: '2026-03-20', tipo: 'custo', descricao: 'Flash App', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026089', nf: null },
+    { id: 'el085', data: '2026-03-20', tipo: 'custo', descricao: 'Receita Federal', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026090', nf: null },
+    { id: 'el086', data: '2026-03-20', tipo: 'custo', descricao: 'CEF Matriz', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026091', nf: null },
+    { id: 'el087', data: '2026-03-24', tipo: 'custo', descricao: 'Magalupay', valor: 4654.72, categoria: '', projeto: '', fornecedor: 'ef048', origem: 'extrato', obs: '', transferNum: '2026092', nf: null },
+    { id: 'el088', data: '2026-03-24', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026093', nf: null },
+    { id: 'el089', data: '2026-03-25', tipo: 'custo', descricao: 'Vina Eventos', valor: 26562.68, categoria: '', projeto: '', fornecedor: 'ef049', origem: 'extrato', obs: '', transferNum: '2026094', nf: null },
+    { id: 'el090', data: '2026-03-25', tipo: 'custo', descricao: 'Andrew Melo Lima', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026095', nf: null },
+    { id: 'el091', data: '2026-03-25', tipo: 'custo', descricao: 'Priscilla Ariela de Assis Faria', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026096', nf: null },
+    { id: 'el092', data: '2026-03-25', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga da Silva', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026097', nf: null },
+    { id: 'el093', data: '2026-03-26', tipo: 'custo', descricao: 'Guilherme Henrique Queiroz Martins', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef050', origem: 'extrato', obs: '', transferNum: '2026098', nf: null },
+    { id: 'el094', data: '2026-03-26', tipo: 'custo', descricao: 'Fervo Tournament', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef051', origem: 'extrato', obs: '', transferNum: '2026099', nf: null },
     { id: 'el095', data: '2026-03-26', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 2000.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026100', nf: null },
-    { id: 'el096', data: '2026-03-26', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 1150.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026101', nf: null },
-    { id: 'el097', data: '2026-03-26', tipo: 'custo', descricao: 'Caio dos Santos Nascimento - Freelancer', valor: 1000.0, categoria: '', projeto: '', fornecedor: 'ef052', origem: 'extrato', obs: '', transferNum: '2026102', nf: null },
-    { id: 'el098', data: '2026-03-26', tipo: 'custo', descricao: 'Luis Fernando Toriello dos Santos - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef053', origem: 'extrato', obs: '', transferNum: '2026103', nf: null },
-    { id: 'el099', data: '2026-03-29', tipo: 'custo', descricao: 'IATA - Passagens Aéreas', valor: 1067.4, categoria: '', projeto: '', fornecedor: 'ef054', origem: 'extrato', obs: '', transferNum: '2026104', nf: null },
-    { id: 'el100', data: '2026-03-29', tipo: 'custo', descricao: 'Dlocal Brasil - Pagamento Internacional', valor: 438.38, categoria: '', projeto: '', fornecedor: 'ef055', origem: 'extrato', obs: '', transferNum: '2026105', nf: null },
-    { id: 'el101', data: '2026-03-31', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026106', nf: null },
-    { id: 'el102', data: '2026-03-31', tipo: 'custo', descricao: 'Airbnb - Hospedagem', valor: 2695.0, categoria: '', projeto: '', fornecedor: 'ef056', origem: 'extrato', obs: '', transferNum: '2026107', nf: null },
-    { id: 'el103', data: '2026-04-01', tipo: 'custo', descricao: 'Minerio Digital Filmes - Produção', valor: 20000.0, categoria: '', projeto: '', fornecedor: 'ef057', origem: 'extrato', obs: '', transferNum: '2026108', nf: null },
-    { id: 'el104', data: '2026-04-01', tipo: 'custo', descricao: 'Katsu Produções - Produção', valor: 40000.0, categoria: '', projeto: '', fornecedor: 'ef058', origem: 'extrato', obs: '', transferNum: '2026109', nf: null },
-    { id: 'el105', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Henrique Bueno dos Santos - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef059', origem: 'extrato', obs: '', transferNum: '2026110', nf: null },
-    { id: 'el106', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Douglas Alves Braga - Freelancer', valor: 200.0, categoria: '', projeto: '', fornecedor: 'ef060', origem: 'extrato', obs: '', transferNum: '2026111', nf: null },
-    { id: 'el107', data: '2026-04-02', tipo: 'custo', descricao: 'Joao Pedro Costa Malta - Freelancer', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef061', origem: 'extrato', obs: '', transferNum: '2026112', nf: null },
-    { id: 'el108', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Douglas Alves Braga - Freelancer (2)', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef060', origem: 'extrato', obs: '', transferNum: '2026113', nf: null },
-    { id: 'el109', data: '2026-04-02', tipo: 'custo', descricao: 'Woodstock - Serviço', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef062', origem: 'extrato', obs: '', transferNum: '2026114', nf: null },
-    { id: 'el110', data: '2026-04-02', tipo: 'custo', descricao: 'Giovane Lurezonski Nogueira - Freelancer', valor: 10000.0, categoria: '', projeto: '', fornecedor: 'ef063', origem: 'extrato', obs: '', transferNum: '2026115', nf: null },
-    { id: 'el111', data: '2026-04-02', tipo: 'custo', descricao: 'Helielson Luiz Nascimento - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef039', origem: 'extrato', obs: '', transferNum: '2026116', nf: null },
-    { id: 'el112', data: '2026-04-02', tipo: 'custo', descricao: 'Marcus Vinicius Viana Infante - Freelancer', valor: 1000.0, categoria: '', projeto: '', fornecedor: 'ef038', origem: 'extrato', obs: '', transferNum: '2026117', nf: null },
-    { id: 'el113', data: '2026-04-02', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 87.45, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026118', nf: null },
+    { id: 'el096', data: '2026-03-26', tipo: 'custo', descricao: 'Sharkitutes', valor: 1150.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026101', nf: null },
+    { id: 'el097', data: '2026-03-26', tipo: 'custo', descricao: 'Caio dos Santos Nascimento', valor: 1000.0, categoria: '', projeto: '', fornecedor: 'ef052', origem: 'extrato', obs: '', transferNum: '2026102', nf: null },
+    { id: 'el098', data: '2026-03-26', tipo: 'custo', descricao: 'Luis Fernando Toriello dos Santos', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef053', origem: 'extrato', obs: '', transferNum: '2026103', nf: null },
+    { id: 'el099', data: '2026-03-29', tipo: 'custo', descricao: 'IATA International Air Transport Association', valor: 1067.4, categoria: '', projeto: '', fornecedor: 'ef054', origem: 'extrato', obs: '', transferNum: '2026104', nf: null },
+    { id: 'el100', data: '2026-03-29', tipo: 'custo', descricao: 'Dlocal Brasil', valor: 438.38, categoria: '', projeto: '', fornecedor: 'ef055', origem: 'extrato', obs: '', transferNum: '2026105', nf: null },
+    { id: 'el101', data: '2026-03-31', tipo: 'custo', descricao: 'Nicolas Emerenciano', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026106', nf: null },
+    { id: 'el102', data: '2026-03-31', tipo: 'custo', descricao: 'Airbnb Plataforma Digital', valor: 2695.0, categoria: '', projeto: '', fornecedor: 'ef056', origem: 'extrato', obs: '', transferNum: '2026107', nf: null },
+    { id: 'el103', data: '2026-04-01', tipo: 'custo', descricao: 'Minerio Digital Filmes', valor: 20000.0, categoria: '', projeto: '', fornecedor: 'ef057', origem: 'extrato', obs: '', transferNum: '2026108', nf: null },
+    { id: 'el104', data: '2026-04-01', tipo: 'custo', descricao: 'Katsu Produções', valor: 40000.0, categoria: '', projeto: '', fornecedor: 'ef058', origem: 'extrato', obs: '', transferNum: '2026109', nf: null },
+    { id: 'el105', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Henrique Bueno dos Santos', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef059', origem: 'extrato', obs: '', transferNum: '2026110', nf: null },
+    { id: 'el106', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Douglas Alves Braga', valor: 200.0, categoria: '', projeto: '', fornecedor: 'ef060', origem: 'extrato', obs: '', transferNum: '2026111', nf: null },
+    { id: 'el107', data: '2026-04-02', tipo: 'custo', descricao: 'Joao Pedro Costa Malta', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef061', origem: 'extrato', obs: '', transferNum: '2026112', nf: null },
+    { id: 'el108', data: '2026-04-02', tipo: 'custo', descricao: 'Pedro Douglas Alves Braga', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef060', origem: 'extrato', obs: '', transferNum: '2026113', nf: null },
+    { id: 'el109', data: '2026-04-02', tipo: 'custo', descricao: 'Woodstock', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef062', origem: 'extrato', obs: '', transferNum: '2026114', nf: null },
+    { id: 'el110', data: '2026-04-02', tipo: 'custo', descricao: 'Giovane Lurezonski Nogueira', valor: 10000.0, categoria: '', projeto: '', fornecedor: 'ef063', origem: 'extrato', obs: '', transferNum: '2026115', nf: null },
+    { id: 'el111', data: '2026-04-02', tipo: 'custo', descricao: 'Helielson Luiz Nascimento', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef039', origem: 'extrato', obs: '', transferNum: '2026116', nf: null },
+    { id: 'el112', data: '2026-04-02', tipo: 'custo', descricao: 'Marcus Vinicius Viana Infante', valor: 1000.0, categoria: '', projeto: '', fornecedor: 'ef038', origem: 'extrato', obs: '', transferNum: '2026117', nf: null },
+    { id: 'el113', data: '2026-04-02', tipo: 'custo', descricao: 'Priscilla Ariela de Assis Faria', valor: 87.45, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026118', nf: null },
     { id: 'el114', data: '2026-04-02', tipo: 'custo', descricao: 'Renan Garcia de Sousa Santos', valor: 3200.0, categoria: '', projeto: '', fornecedor: 'ef007', origem: 'extrato', obs: '', transferNum: '2026119', nf: null },
-    { id: 'el115', data: '2026-04-02', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 1198.0, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026120', nf: null },
+    { id: 'el115', data: '2026-04-02', tipo: 'custo', descricao: 'Sharkitutes', valor: 1198.0, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026120', nf: null },
     { id: 'el116', data: '2026-04-04', tipo: 'custo', descricao: 'CSJ Cursos e Serviços Digitais', valor: 2500.0, categoria: '', projeto: '', fornecedor: 'ef064', origem: 'extrato', obs: '', transferNum: '2026121', nf: null },
-    { id: 'el117', data: '2026-04-06', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 2660.95, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026122', nf: null },
-    { id: 'el118', data: '2026-04-06', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 5705.63, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026123', nf: null },
-    { id: 'el119', data: '2026-04-06', tipo: 'custo', descricao: 'Lalamove - Logística (1)', valor: 36.31, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026124', nf: null },
-    { id: 'el120', data: '2026-04-06', tipo: 'custo', descricao: 'Lalamove - Logística (2)', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026125', nf: null },
-    { id: 'el121', data: '2026-04-06', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 1800.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026126', nf: null },
-    { id: 'el122', data: '2026-04-06', tipo: 'custo', descricao: 'Gilson Alves Moreira Junior - Freelancer', valor: 4000.0, categoria: '', projeto: '', fornecedor: 'ef065', origem: 'extrato', obs: '', transferNum: '2026127', nf: null },
-    { id: 'el123', data: '2026-04-06', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 150.99, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026128', nf: null },
-    { id: 'el124', data: '2026-04-08', tipo: 'custo', descricao: 'Uriel Jadi Spada Brito - Freelancer', valor: 10000.0, categoria: '', projeto: '', fornecedor: 'ef066', origem: 'extrato', obs: '', transferNum: '2026129', nf: null },
-    { id: 'el125', data: '2026-04-08', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 1797.0, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026130', nf: null },
-    { id: 'el126', data: '2026-04-08', tipo: 'custo', descricao: 'Remessa Online - Pagamento Internacional', valor: 5012.47, categoria: '', projeto: '', fornecedor: 'ef067', origem: 'extrato', obs: '', transferNum: '2026131', nf: null },
-    { id: 'el127', data: '2026-04-08', tipo: 'custo', descricao: 'Remessa Online - Pagamento Internacional (2)', valor: 5012.47, categoria: '', projeto: '', fornecedor: 'ef067', origem: 'extrato', obs: '', transferNum: '2026132', nf: null },
-    { id: 'el128', data: '2026-04-10', tipo: 'custo', descricao: 'Banco Topázio - Pagamento', valor: 5779.88, categoria: '', projeto: '', fornecedor: 'ef068', origem: 'extrato', obs: '', transferNum: '2026133', nf: null },
+    { id: 'el117', data: '2026-04-06', tipo: 'custo', descricao: 'Sul América Companhia de Seguro Saúde', valor: 2660.95, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026122', nf: null },
+    { id: 'el118', data: '2026-04-06', tipo: 'custo', descricao: 'Pagamento Fatura Cartão', valor: 5705.63, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026123', nf: null },
+    { id: 'el119', data: '2026-04-06', tipo: 'custo', descricao: 'Lalamove Tecnologia', valor: 36.31, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026124', nf: null },
+    { id: 'el120', data: '2026-04-06', tipo: 'custo', descricao: 'Lalamove Tecnologia', valor: 100.0, categoria: '', projeto: '', fornecedor: 'ef005', origem: 'extrato', obs: '', transferNum: '2026125', nf: null },
+    { id: 'el121', data: '2026-04-06', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon', valor: 1800.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026126', nf: null },
+    { id: 'el122', data: '2026-04-06', tipo: 'custo', descricao: 'Gilson Alves Moreira Junior', valor: 4000.0, categoria: '', projeto: '', fornecedor: 'ef065', origem: 'extrato', obs: '', transferNum: '2026127', nf: null },
+    { id: 'el123', data: '2026-04-06', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 150.99, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026128', nf: null },
+    { id: 'el124', data: '2026-04-08', tipo: 'custo', descricao: 'Uriel Jadi Spada Brito', valor: 10000.0, categoria: '', projeto: '', fornecedor: 'ef066', origem: 'extrato', obs: '', transferNum: '2026129', nf: null },
+    { id: 'el125', data: '2026-04-08', tipo: 'custo', descricao: 'Sharkitutes', valor: 1797.0, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026130', nf: null },
+    { id: 'el126', data: '2026-04-08', tipo: 'custo', descricao: 'Remessa Online Bee Tech', valor: 5012.47, categoria: '', projeto: '', fornecedor: 'ef067', origem: 'extrato', obs: '', transferNum: '2026131', nf: null },
+    { id: 'el127', data: '2026-04-08', tipo: 'custo', descricao: 'Remessa Online Bee Tech', valor: 5012.47, categoria: '', projeto: '', fornecedor: 'ef067', origem: 'extrato', obs: '', transferNum: '2026132', nf: null },
+    { id: 'el128', data: '2026-04-10', tipo: 'custo', descricao: 'Banco Topázio', valor: 5779.88, categoria: '', projeto: '', fornecedor: 'ef068', origem: 'extrato', obs: '', transferNum: '2026133', nf: null },
     { id: 'el129', data: '2026-04-13', tipo: 'custo', descricao: 'Schneider Rodrigues da Silva Nascimento Santana', valor: 7000.0, categoria: '', projeto: '', fornecedor: 'ef069', origem: 'extrato', obs: '', transferNum: '2026134', nf: null },
-    { id: 'el130', data: '2026-04-14', tipo: 'custo', descricao: 'Lucas Moura Pelusi - Freelancer', valor: 1800.0, categoria: '', projeto: '', fornecedor: 'ef070', origem: 'extrato', obs: '', transferNum: '2026135', nf: null },
-    { id: 'el131', data: '2026-04-14', tipo: 'custo', descricao: 'Vina Eventos - Evento', valor: 26562.68, categoria: '', projeto: '', fornecedor: 'ef049', origem: 'extrato', obs: '', transferNum: '2026136', nf: null },
-    { id: 'el132', data: '2026-04-14', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 605.29, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026137', nf: null },
-    { id: 'el133', data: '2026-04-15', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 216.32, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026138', nf: null },
-    { id: 'el134', data: '2026-04-16', tipo: 'custo', descricao: 'DG Sports - Serviço Esportivo', valor: 17500.0, categoria: '', projeto: '', fornecedor: 'ef071', origem: 'extrato', obs: '', transferNum: '2026139', nf: null },
-    { id: 'el135', data: '2026-04-16', tipo: 'custo', descricao: 'Rosgolim Presentes - Brindes', valor: 378.0, categoria: '', projeto: '', fornecedor: 'ef072', origem: 'extrato', obs: '', transferNum: '2026140', nf: null },
+    { id: 'el130', data: '2026-04-14', tipo: 'custo', descricao: 'Lucas Moura Pelusi', valor: 1800.0, categoria: '', projeto: '', fornecedor: 'ef070', origem: 'extrato', obs: '', transferNum: '2026135', nf: null },
+    { id: 'el131', data: '2026-04-14', tipo: 'custo', descricao: 'Vina Eventos', valor: 26562.68, categoria: '', projeto: '', fornecedor: 'ef049', origem: 'extrato', obs: '', transferNum: '2026136', nf: null },
+    { id: 'el132', data: '2026-04-14', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 605.29, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026137', nf: null },
+    { id: 'el133', data: '2026-04-15', tipo: 'custo', descricao: 'Sul América Companhia de Seguro Saúde', valor: 216.32, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026138', nf: null },
+    { id: 'el134', data: '2026-04-16', tipo: 'custo', descricao: 'DG Sports', valor: 17500.0, categoria: '', projeto: '', fornecedor: 'ef071', origem: 'extrato', obs: '', transferNum: '2026139', nf: null },
+    { id: 'el135', data: '2026-04-16', tipo: 'custo', descricao: 'Rosgolim Presentes', valor: 378.0, categoria: '', projeto: '', fornecedor: 'ef072', origem: 'extrato', obs: '', transferNum: '2026140', nf: null },
     { id: 'el136', data: '2026-04-16', tipo: 'custo', descricao: 'Euno Consultoria', valor: 5900.0, categoria: '', projeto: '', fornecedor: 'ef073', origem: 'extrato', obs: '', transferNum: '2026141', nf: null },
-    { id: 'el137', data: '2026-04-16', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 753.9, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026142', nf: null },
-    { id: 'el138', data: '2026-04-18', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 511.96, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026143', nf: null },
-    { id: 'el139', data: '2026-04-19', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 396.72, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026144', nf: null },
-    { id: 'el140', data: '2026-04-20', tipo: 'custo', descricao: 'DARF - Receita Federal', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026145', nf: null },
-    { id: 'el141', data: '2026-04-20', tipo: 'custo', descricao: 'CEF Matriz - Pagamento', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026146', nf: null },
-    { id: 'el142', data: '2026-04-20', tipo: 'custo', descricao: 'IPTU/ISS - Pref. Mun. São Paulo', valor: 236.35, categoria: '', projeto: '', fornecedor: 'ef074', origem: 'extrato', obs: '', transferNum: '2026147', nf: null },
-    { id: 'el143', data: '2026-04-21', tipo: 'custo', descricao: 'Flash App - Vale Alimentação/Refeição', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026148', nf: null },
-    { id: 'el144', data: '2026-04-21', tipo: 'custo', descricao: 'Bhonnie Ateliê Esmalte e Pedras - Brindes', valor: 884.0, categoria: '', projeto: '', fornecedor: 'ef075', origem: 'extrato', obs: '', transferNum: '2026149', nf: null },
-    { id: 'el145', data: '2026-04-22', tipo: 'custo', descricao: 'Joao Pedro de Paula Mora - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef076', origem: 'extrato', obs: '', transferNum: '2026150', nf: null },
-    { id: 'el146', data: '2026-04-22', tipo: 'custo', descricao: 'Gabriel Romão Franco de Oliveira - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef077', origem: 'extrato', obs: '', transferNum: '2026151', nf: null },
-    { id: 'el147', data: '2026-04-22', tipo: 'custo', descricao: 'Wesley Barbosa da Silva - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef078', origem: 'extrato', obs: '', transferNum: '2026152', nf: null },
-    { id: 'el148', data: '2026-04-22', tipo: 'custo', descricao: 'Vitor Fabrício dos Santos Sereno - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef079', origem: 'extrato', obs: '', transferNum: '2026153', nf: null },
-    { id: 'el149', data: '2026-04-22', tipo: 'custo', descricao: 'Thayllan de Souza Azeredo - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef080', origem: 'extrato', obs: '', transferNum: '2026154', nf: null },
-    { id: 'el150', data: '2026-04-22', tipo: 'custo', descricao: 'Samuel Feliciano Felipe da Silva - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef081', origem: 'extrato', obs: '', transferNum: '2026155', nf: null },
-    { id: 'el151', data: '2026-04-22', tipo: 'custo', descricao: 'Willian Moura Araujo - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef082', origem: 'extrato', obs: '', transferNum: '2026156', nf: null },
-    { id: 'el152', data: '2026-04-22', tipo: 'custo', descricao: 'Gustavo Lucas Vieira Pimentel - Freelancer', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef083', origem: 'extrato', obs: '', transferNum: '2026157', nf: null },
-    { id: 'el153', data: '2026-04-22', tipo: 'custo', descricao: 'Ronaldo Portugal Pinto - Freelancer', valor: 600.0, categoria: '', projeto: '', fornecedor: 'ef084', origem: 'extrato', obs: '', transferNum: '2026158', nf: null },
-    { id: 'el154', data: '2026-04-22', tipo: 'custo', descricao: 'Willian Lima dos Santos - Freelancer', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef085', origem: 'extrato', obs: '', transferNum: '2026159', nf: null },
-    { id: 'el155', data: '2026-04-22', tipo: 'custo', descricao: 'Luis Fernando Toriello dos Santos - Freelancer', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef053', origem: 'extrato', obs: '', transferNum: '2026160', nf: null },
-    { id: 'el156', data: '2026-04-22', tipo: 'custo', descricao: 'Banco Topázio - Pagamento', valor: 598.56, categoria: '', projeto: '', fornecedor: 'ef068', origem: 'extrato', obs: '', transferNum: '2026161', nf: null },
-    { id: 'el157', data: '2026-04-22', tipo: 'custo', descricao: 'Sergio Antonio Costa Villa - Freelancer', valor: 1250.0, categoria: '', projeto: '', fornecedor: 'ef086', origem: 'extrato', obs: '', transferNum: '2026162', nf: null },
-    { id: 'el158', data: '2026-04-23', tipo: 'custo', descricao: 'Ecocopos - Brindes/Copos', valor: 598.8, categoria: '', projeto: '', fornecedor: 'ef087', origem: 'extrato', obs: '', transferNum: '2026163', nf: null },
-    { id: 'el159', data: '2026-04-23', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 817.68, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026164', nf: null },
-    { id: 'el160', data: '2026-04-23', tipo: 'custo', descricao: 'Shark Brindes - Brindes/Merchandising', valor: 12840.75, categoria: '', projeto: '', fornecedor: 'ef041', origem: 'extrato', obs: '', transferNum: '2026165', nf: null },
+    { id: 'el137', data: '2026-04-16', tipo: 'custo', descricao: 'Andrew Melo Lima', valor: 753.9, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026142', nf: null },
+    { id: 'el138', data: '2026-04-18', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 511.96, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026143', nf: null },
+    { id: 'el139', data: '2026-04-19', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 396.72, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026144', nf: null },
+    { id: 'el140', data: '2026-04-20', tipo: 'custo', descricao: 'Receita Federal', valor: 1804.05, categoria: '', projeto: '', fornecedor: 'ef002', origem: 'extrato', obs: '', transferNum: '2026145', nf: null },
+    { id: 'el141', data: '2026-04-20', tipo: 'custo', descricao: 'CEF Matriz', valor: 1120.0, categoria: '', projeto: '', fornecedor: 'ef003', origem: 'extrato', obs: '', transferNum: '2026146', nf: null },
+    { id: 'el142', data: '2026-04-20', tipo: 'custo', descricao: 'Prefeitura Municipal de São Paulo', valor: 236.35, categoria: '', projeto: '', fornecedor: 'ef074', origem: 'extrato', obs: '', transferNum: '2026147', nf: null },
+    { id: 'el143', data: '2026-04-21', tipo: 'custo', descricao: 'Flash App', valor: 2250.0, categoria: '', projeto: '', fornecedor: 'ef013', origem: 'extrato', obs: '', transferNum: '2026148', nf: null },
+    { id: 'el144', data: '2026-04-21', tipo: 'custo', descricao: 'Bhonnie Ateliê Esmalte e Pedras', valor: 884.0, categoria: '', projeto: '', fornecedor: 'ef075', origem: 'extrato', obs: '', transferNum: '2026149', nf: null },
+    { id: 'el145', data: '2026-04-22', tipo: 'custo', descricao: 'Joao Pedro de Paula Mora', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef076', origem: 'extrato', obs: '', transferNum: '2026150', nf: null },
+    { id: 'el146', data: '2026-04-22', tipo: 'custo', descricao: 'Gabriel Romão Franco de Oliveira', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef077', origem: 'extrato', obs: '', transferNum: '2026151', nf: null },
+    { id: 'el147', data: '2026-04-22', tipo: 'custo', descricao: 'Wesley Barbosa da Silva', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef078', origem: 'extrato', obs: '', transferNum: '2026152', nf: null },
+    { id: 'el148', data: '2026-04-22', tipo: 'custo', descricao: 'Vitor Fabrício dos Santos Sereno', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef079', origem: 'extrato', obs: '', transferNum: '2026153', nf: null },
+    { id: 'el149', data: '2026-04-22', tipo: 'custo', descricao: 'Thayllan de Souza Azeredo', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef080', origem: 'extrato', obs: '', transferNum: '2026154', nf: null },
+    { id: 'el150', data: '2026-04-22', tipo: 'custo', descricao: 'Samuel Feliciano Felipe da Silva', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef081', origem: 'extrato', obs: '', transferNum: '2026155', nf: null },
+    { id: 'el151', data: '2026-04-22', tipo: 'custo', descricao: 'Willian Moura Araujo', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef082', origem: 'extrato', obs: '', transferNum: '2026156', nf: null },
+    { id: 'el152', data: '2026-04-22', tipo: 'custo', descricao: 'Gustavo Lucas Vieira Pimentel', valor: 187.5, categoria: '', projeto: '', fornecedor: 'ef083', origem: 'extrato', obs: '', transferNum: '2026157', nf: null },
+    { id: 'el153', data: '2026-04-22', tipo: 'custo', descricao: 'Ronaldo Portugal Pinto', valor: 600.0, categoria: '', projeto: '', fornecedor: 'ef084', origem: 'extrato', obs: '', transferNum: '2026158', nf: null },
+    { id: 'el154', data: '2026-04-22', tipo: 'custo', descricao: 'Willian Lima dos Santos', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef085', origem: 'extrato', obs: '', transferNum: '2026159', nf: null },
+    { id: 'el155', data: '2026-04-22', tipo: 'custo', descricao: 'Luis Fernando Toriello dos Santos', valor: 500.0, categoria: '', projeto: '', fornecedor: 'ef053', origem: 'extrato', obs: '', transferNum: '2026160', nf: null },
+    { id: 'el156', data: '2026-04-22', tipo: 'custo', descricao: 'Banco Topázio', valor: 598.56, categoria: '', projeto: '', fornecedor: 'ef068', origem: 'extrato', obs: '', transferNum: '2026161', nf: null },
+    { id: 'el157', data: '2026-04-22', tipo: 'custo', descricao: 'Sergio Antonio Costa Villa', valor: 1250.0, categoria: '', projeto: '', fornecedor: 'ef086', origem: 'extrato', obs: '', transferNum: '2026162', nf: null },
+    { id: 'el158', data: '2026-04-23', tipo: 'custo', descricao: 'Ecocopos Indústria e Comércio de Brindes', valor: 598.8, categoria: '', projeto: '', fornecedor: 'ef087', origem: 'extrato', obs: '', transferNum: '2026163', nf: null },
+    { id: 'el159', data: '2026-04-23', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga da Silva', valor: 817.68, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026164', nf: null },
+    { id: 'el160', data: '2026-04-23', tipo: 'custo', descricao: 'Shark Brindes', valor: 12840.75, categoria: '', projeto: '', fornecedor: 'ef041', origem: 'extrato', obs: '', transferNum: '2026165', nf: null },
     { id: 'el161', data: '2026-04-23', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 420.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026166', nf: null },
     { id: 'el162', data: '2026-04-23', tipo: 'custo', descricao: 'Anholeto Premiações Corporativas', valor: 4255.0, categoria: '', projeto: '', fornecedor: 'ef035', origem: 'extrato', obs: '', transferNum: '2026167', nf: null },
-    { id: 'el163', data: '2026-04-24', tipo: 'custo', descricao: 'Booking.com - Hospedagem', valor: 1462.24, categoria: '', projeto: '', fornecedor: 'ef088', origem: 'extrato', obs: '', transferNum: '2026168', nf: null },
-    { id: 'el164', data: '2026-04-24', tipo: 'custo', descricao: 'Sharkitutes - Serviço', valor: 2581.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026169', nf: null },
-    { id: 'el165', data: '2026-04-24', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga - Freelancer', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026170', nf: null },
-    { id: 'el166', data: '2026-04-24', tipo: 'custo', descricao: 'Ana Caroline Bornhofen - Freelancer', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026171', nf: null },
-    { id: 'el167', data: '2026-04-24', tipo: 'custo', descricao: 'Priscilla Ariela - Freelancer', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026172', nf: null },
-    { id: 'el168', data: '2026-04-24', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 45000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026173', nf: null },
-    { id: 'el169', data: '2026-04-27', tipo: 'custo', descricao: 'CIA das Ideias - Gráfica/Design', valor: 150.0, categoria: '', projeto: '', fornecedor: 'ef089', origem: 'extrato', obs: '', transferNum: '2026174', nf: null },
-    { id: 'el170', data: '2026-04-28', tipo: 'custo', descricao: 'Gabriel Macario Lopes - Freelancer', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef090', origem: 'extrato', obs: '', transferNum: '2026175', nf: null },
-    { id: 'el171', data: '2026-04-28', tipo: 'custo', descricao: 'VR Benefícios e Serviços', valor: 110.27, categoria: '', projeto: '', fornecedor: 'ef091', origem: 'extrato', obs: '', transferNum: '2026176', nf: null },
-    { id: 'el172', data: '2026-04-28', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon - Freelancer', valor: 5500.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026177', nf: null },
-    { id: 'el173', data: '2026-04-28', tipo: 'custo', descricao: 'Brunno Felippe Colosimo - Freelancer', valor: 333.41, categoria: '', projeto: '', fornecedor: 'ef092', origem: 'extrato', obs: '', transferNum: '2026178', nf: null },
+    { id: 'el163', data: '2026-04-24', tipo: 'custo', descricao: 'Booking.com Brasil', valor: 1462.24, categoria: '', projeto: '', fornecedor: 'ef088', origem: 'extrato', obs: '', transferNum: '2026168', nf: null },
+    { id: 'el164', data: '2026-04-24', tipo: 'custo', descricao: 'Sharkitutes', valor: 2581.5, categoria: '', projeto: '', fornecedor: 'ef044', origem: 'extrato', obs: '', transferNum: '2026169', nf: null },
+    { id: 'el165', data: '2026-04-24', tipo: 'custo', descricao: 'Arthur Gomes Gonzaga da Silva', valor: 3631.42, categoria: '', projeto: '', fornecedor: 'ef015', origem: 'extrato', obs: '', transferNum: '2026170', nf: null },
+    { id: 'el166', data: '2026-04-24', tipo: 'custo', descricao: 'Ana Caroline Bornhofen', valor: 4738.03, categoria: '', projeto: '', fornecedor: 'ef016', origem: 'extrato', obs: '', transferNum: '2026171', nf: null },
+    { id: 'el167', data: '2026-04-24', tipo: 'custo', descricao: 'Priscilla Ariela de Assis Faria', valor: 4068.5, categoria: '', projeto: '', fornecedor: 'ef014', origem: 'extrato', obs: '', transferNum: '2026172', nf: null },
+    { id: 'el168', data: '2026-04-24', tipo: 'custo', descricao: 'Tomás Jordão Macul', valor: 45000.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026173', nf: null },
+    { id: 'el169', data: '2026-04-27', tipo: 'custo', descricao: 'CIA das Ideias', valor: 150.0, categoria: '', projeto: '', fornecedor: 'ef089', origem: 'extrato', obs: '', transferNum: '2026174', nf: null },
+    { id: 'el170', data: '2026-04-28', tipo: 'custo', descricao: 'Gabriel Macario Lopes', valor: 400.0, categoria: '', projeto: '', fornecedor: 'ef090', origem: 'extrato', obs: '', transferNum: '2026175', nf: null },
+    { id: 'el171', data: '2026-04-28', tipo: 'custo', descricao: 'VR Benefícios e Serviços de Processamento', valor: 110.27, categoria: '', projeto: '', fornecedor: 'ef091', origem: 'extrato', obs: '', transferNum: '2026176', nf: null },
+    { id: 'el172', data: '2026-04-28', tipo: 'custo', descricao: 'Matheus de Moraes Franciscon', valor: 5500.0, categoria: '', projeto: '', fornecedor: 'ef006', origem: 'extrato', obs: '', transferNum: '2026177', nf: null },
+    { id: 'el173', data: '2026-04-28', tipo: 'custo', descricao: 'Brunno Felippe Colosimo', valor: 333.41, categoria: '', projeto: '', fornecedor: 'ef092', origem: 'extrato', obs: '', transferNum: '2026178', nf: null },
     { id: 'el174', data: '2026-04-28', tipo: 'custo', descricao: 'Gabriel Almeida de Souza', valor: 4700.0, categoria: '', projeto: '', fornecedor: 'ef032', origem: 'extrato', obs: '', transferNum: '2026179', nf: null },
-    { id: 'el175', data: '2026-04-28', tipo: 'custo', descricao: 'Andrew Melo Lima - Freelancer', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026180', nf: null },
-    { id: 'el176', data: '2026-04-28', tipo: 'custo', descricao: 'Nicolas Emerenciano - Freelancer', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026181', nf: null },
-    { id: 'el177', data: '2026-04-28', tipo: 'custo', descricao: 'Tomás Jordão Macul - Freelancer', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026182', nf: null },
+    { id: 'el175', data: '2026-04-28', tipo: 'custo', descricao: 'Andrew Melo Lima', valor: 6000.0, categoria: '', projeto: '', fornecedor: 'ef025', origem: 'extrato', obs: '', transferNum: '2026180', nf: null },
+    { id: 'el176', data: '2026-04-28', tipo: 'custo', descricao: 'Nicolas Emerenciano', valor: 3250.0, categoria: '', projeto: '', fornecedor: 'ef019', origem: 'extrato', obs: '', transferNum: '2026181', nf: null },
+    { id: 'el177', data: '2026-04-28', tipo: 'custo', descricao: 'Tomás Jordão Macul', valor: 1958.0, categoria: '', projeto: '', fornecedor: 'ef017', origem: 'extrato', obs: '', transferNum: '2026182', nf: null },
     { id: 'el178', data: '2026-04-28', tipo: 'custo', descricao: 'Nailton Conceição Lima Junior', valor: 240.0, categoria: '', projeto: '', fornecedor: 'ef021', origem: 'extrato', obs: '', transferNum: '2026183', nf: null },
-    { id: 'el179', data: '2026-04-29', tipo: 'custo', descricao: 'CDI / CIA das Ideias - Gráfica', valor: 150.0, categoria: '', projeto: '', fornecedor: 'ef089', origem: 'extrato', obs: '', transferNum: '2026184', nf: null },
+    { id: 'el179', data: '2026-04-29', tipo: 'custo', descricao: 'CIA das Ideias', valor: 150.0, categoria: '', projeto: '', fornecedor: 'ef089', origem: 'extrato', obs: '', transferNum: '2026184', nf: null },
     { id: 'el180', data: '2026-04-29', tipo: 'custo', descricao: 'Max Tours Viagens e Turismo', valor: 8921.23, categoria: '', projeto: '', fornecedor: 'ef036', origem: 'extrato', obs: '', transferNum: '2026185', nf: null },
-    { id: 'el181', data: '2026-04-29', tipo: 'custo', descricao: 'Nerd Stickers - Brindes', valor: 272.6, categoria: '', projeto: '', fornecedor: 'ef027', origem: 'extrato', obs: '', transferNum: '2026186', nf: null },
-    { id: 'el182', data: '2026-04-29', tipo: 'custo', descricao: 'Copyset Digital - Impressão', valor: 45.0, categoria: '', projeto: '', fornecedor: 'ef093', origem: 'extrato', obs: '', transferNum: '2026187', nf: null },
-    { id: 'el183', data: '2026-04-29', tipo: 'custo', descricao: 'Sertha - Serviço', valor: 1945.0, categoria: '', projeto: '', fornecedor: 'ef094', origem: 'extrato', obs: '', transferNum: '2026188', nf: null },
-    { id: 'el184', data: '2026-04-30', tipo: 'custo', descricao: 'Toyoinfláveis - Evento', valor: 2470.0, categoria: '', projeto: '', fornecedor: 'ef095', origem: 'extrato', obs: '', transferNum: '2026189', nf: null },
-    { id: 'el185', data: '2026-04-30', tipo: 'custo', descricao: 'Nakalu - Serviço', valor: 440.0, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026190', nf: null },
-    { id: 'el186', data: '2026-05-01', tipo: 'custo', descricao: 'Uber - Transporte', valor: 159.96, categoria: '', projeto: '', fornecedor: 'ef096', origem: 'extrato', obs: '', transferNum: '2026191', nf: null },
-    { id: 'el187', data: '2026-05-01', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima - Freelancer', valor: 188.9, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026192', nf: null },
-    { id: 'el188', data: '2026-05-01', tipo: 'custo', descricao: 'Seguro Saúde - Sul América', valor: 5412.8, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026193', nf: null },
-    { id: 'el189', data: '2026-05-01', tipo: 'custo', descricao: 'Pedro Henrique Estanislau Reis Pereira - Freelancer', valor: 247.6, categoria: '', projeto: '', fornecedor: 'ef098', origem: 'extrato', obs: '', transferNum: '2026194', nf: null },
-    { id: 'el190', data: '2026-05-01', tipo: 'custo', descricao: 'Alex Kaue Cordeiro - Freelancer', valor: 49.97, categoria: '', projeto: '', fornecedor: 'ef099', origem: 'extrato', obs: '', transferNum: '2026195', nf: null },
-    { id: 'el191', data: '2026-05-02', tipo: 'custo', descricao: 'Alex Kaue Cordeiro - Freelancer', valor: 167.85, categoria: '', projeto: '', fornecedor: 'ef099', origem: 'extrato', obs: '', transferNum: '2026196', nf: null },
-    { id: 'el192', data: '2026-05-02', tipo: 'custo', descricao: 'Andreas Pedro Menezes Andrade - Freelancer', valor: 157.5, categoria: '', projeto: '', fornecedor: 'ef100', origem: 'extrato', obs: '', transferNum: '2026197', nf: null },
-    { id: 'el193', data: '2026-05-02', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima - Freelancer', valor: 224.55, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026198', nf: null },
-    { id: 'el194', data: '2026-05-03', tipo: 'custo', descricao: 'Pedro Henrique Estanislau Reis Pereira - Freelancer', valor: 333.98, categoria: '', projeto: '', fornecedor: 'ef098', origem: 'extrato', obs: '', transferNum: '2026199', nf: null },
-    { id: 'el195', data: '2026-05-03', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima - Freelancer', valor: 105.47, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026200', nf: null },
-    { id: 'el196', data: '2026-05-03', tipo: 'custo', descricao: 'Andreas Pedro Menezes Andrade - Freelancer', valor: 135.65, categoria: '', projeto: '', fornecedor: 'ef100', origem: 'extrato', obs: '', transferNum: '2026201', nf: null },
-    { id: 'el197', data: '2026-05-03', tipo: 'custo', descricao: 'Matheus de Lima Guedes - Freelancer', valor: 218.82, categoria: '', projeto: '', fornecedor: 'ef101', origem: 'extrato', obs: '', transferNum: '2026202', nf: null },
-    { id: 'el198', data: '2026-05-03', tipo: 'custo', descricao: 'Guilherme Coelho Martins - Freelancer', valor: 159.17, categoria: '', projeto: '', fornecedor: 'ef102', origem: 'extrato', obs: '', transferNum: '2026203', nf: null },
-    { id: 'el199', data: '2026-05-03', tipo: 'custo', descricao: 'Pagamento de fatura cartão', valor: 8666.47, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026204', nf: null },
-    { id: 'el200', data: '2026-05-04', tipo: 'custo', descricao: 'Matheus Felipe Cruz Braz - Freelancer', valor: 3200.0, categoria: '', projeto: '', fornecedor: 'ef103', origem: 'extrato', obs: '', transferNum: '2026205', nf: null },
+    { id: 'el181', data: '2026-04-29', tipo: 'custo', descricao: 'Nerd Stickers', valor: 272.6, categoria: '', projeto: '', fornecedor: 'ef027', origem: 'extrato', obs: '', transferNum: '2026186', nf: null },
+    { id: 'el182', data: '2026-04-29', tipo: 'custo', descricao: 'Copyset Digital Ltda', valor: 45.0, categoria: '', projeto: '', fornecedor: 'ef093', origem: 'extrato', obs: '', transferNum: '2026187', nf: null },
+    { id: 'el183', data: '2026-04-29', tipo: 'custo', descricao: 'Sertha', valor: 1945.0, categoria: '', projeto: '', fornecedor: 'ef094', origem: 'extrato', obs: '', transferNum: '2026188', nf: null },
+    { id: 'el184', data: '2026-04-30', tipo: 'custo', descricao: 'Toyoinfláveis', valor: 2470.0, categoria: '', projeto: '', fornecedor: 'ef095', origem: 'extrato', obs: '', transferNum: '2026189', nf: null },
+    { id: 'el185', data: '2026-04-30', tipo: 'custo', descricao: 'Nakalu', valor: 440.0, categoria: '', projeto: '', fornecedor: 'ef004', origem: 'extrato', obs: '', transferNum: '2026190', nf: null },
+    { id: 'el186', data: '2026-05-01', tipo: 'custo', descricao: 'Uber do Brasil Tecnologia', valor: 159.96, categoria: '', projeto: '', fornecedor: 'ef096', origem: 'extrato', obs: '', transferNum: '2026191', nf: null },
+    { id: 'el187', data: '2026-05-01', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima', valor: 188.9, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026192', nf: null },
+    { id: 'el188', data: '2026-05-01', tipo: 'custo', descricao: 'Sul América Companhia de Seguro Saúde', valor: 5412.8, categoria: '', projeto: '', fornecedor: 'ef001', origem: 'extrato', obs: '', transferNum: '2026193', nf: null },
+    { id: 'el189', data: '2026-05-01', tipo: 'custo', descricao: 'Pedro Henrique Estanislau Reis Pereira', valor: 247.6, categoria: '', projeto: '', fornecedor: 'ef098', origem: 'extrato', obs: '', transferNum: '2026194', nf: null },
+    { id: 'el190', data: '2026-05-01', tipo: 'custo', descricao: 'Alex Kaue Cordeiro', valor: 49.97, categoria: '', projeto: '', fornecedor: 'ef099', origem: 'extrato', obs: '', transferNum: '2026195', nf: null },
+    { id: 'el191', data: '2026-05-02', tipo: 'custo', descricao: 'Alex Kaue Cordeiro', valor: 167.85, categoria: '', projeto: '', fornecedor: 'ef099', origem: 'extrato', obs: '', transferNum: '2026196', nf: null },
+    { id: 'el192', data: '2026-05-02', tipo: 'custo', descricao: 'Andreas Pedro Menezes Andrade', valor: 157.5, categoria: '', projeto: '', fornecedor: 'ef100', origem: 'extrato', obs: '', transferNum: '2026197', nf: null },
+    { id: 'el193', data: '2026-05-02', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima', valor: 224.55, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026198', nf: null },
+    { id: 'el194', data: '2026-05-03', tipo: 'custo', descricao: 'Pedro Henrique Estanislau Reis Pereira', valor: 333.98, categoria: '', projeto: '', fornecedor: 'ef098', origem: 'extrato', obs: '', transferNum: '2026199', nf: null },
+    { id: 'el195', data: '2026-05-03', tipo: 'custo', descricao: 'Leonardo Oliveira Alves de Lima', valor: 105.47, categoria: '', projeto: '', fornecedor: 'ef097', origem: 'extrato', obs: '', transferNum: '2026200', nf: null },
+    { id: 'el196', data: '2026-05-03', tipo: 'custo', descricao: 'Andreas Pedro Menezes Andrade', valor: 135.65, categoria: '', projeto: '', fornecedor: 'ef100', origem: 'extrato', obs: '', transferNum: '2026201', nf: null },
+    { id: 'el197', data: '2026-05-03', tipo: 'custo', descricao: 'Matheus de Lima Guedes', valor: 218.82, categoria: '', projeto: '', fornecedor: 'ef101', origem: 'extrato', obs: '', transferNum: '2026202', nf: null },
+    { id: 'el198', data: '2026-05-03', tipo: 'custo', descricao: 'Guilherme Coelho Martins', valor: 159.17, categoria: '', projeto: '', fornecedor: 'ef102', origem: 'extrato', obs: '', transferNum: '2026203', nf: null },
+    { id: 'el199', data: '2026-05-03', tipo: 'custo', descricao: 'Pagamento Fatura Cartão', valor: 8666.47, categoria: '', projeto: '', fornecedor: 'ef026', origem: 'cartao', obs: '', transferNum: '2026204', nf: null },
+    { id: 'el200', data: '2026-05-04', tipo: 'custo', descricao: 'Matheus Felipe Cruz Braz', valor: 3200.0, categoria: '', projeto: '', fornecedor: 'ef103', origem: 'extrato', obs: '', transferNum: '2026205', nf: null },
   ],
   nfCounter: 206,
   lancCounter: 206,
@@ -1951,18 +2017,28 @@ function totalCustoProj(projId) {
   return lancamentosDoProj(projId).reduce((s, l) => s + (l.valor || 0), 0);
 }
 
-function impostoProj(proj) {
+function totalReceitaProj(projId) {
+  return DB.lancamentos
+    .filter(l => l.projeto === projId && l.tipo === 'receita')
+    .reduce((s, l) => s + (l.valor || 0), 0);
+}
+
+// impostoProj replaced by impostoVal above
+
+function impostoVal(proj) {
   if (!proj.impostoId) return 0;
   const imp = getImposto(proj.impostoId);
   if (!imp) return 0;
   const pct = proj.impostoPct != null && proj.impostoPct !== '' ? parseFloat(proj.impostoPct) : imp.pct;
-  return (proj.receita || 0) * pct / 100;
+  const receita = totalReceitaProj(proj.id);
+  return receita * pct / 100;
 }
 
 function lucroProj(proj) {
-  const custos = totalCustoProj(proj.id);
-  const imp = impostoProj(proj);
-  return (proj.receita || 0) - custos - imp;
+  const receita = totalReceitaProj(proj.id);
+  const custos  = totalCustoProj(proj.id);
+  const imp     = impostoVal(proj);
+  return receita - custos - imp;
 }
 
 // ==================== NAVIGATION ====================
@@ -2061,7 +2137,7 @@ function renderDashboard() {
   } else {
     projHtml = DB.projetos.slice(0, 5).map(p => {
       const custos = totalCustoProj(p.id);
-      const pct = p.receita ? Math.min(100, Math.round(custos / p.receita * 100)) : 0;
+      const pct = receita ? Math.min(100, Math.round(custos / receita * 100)) : 0;
       return `
         <div style="margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
@@ -2070,7 +2146,7 @@ function renderDashboard() {
           </div>
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px">
             <span>Custos: ${fmt(custos)}</span>
-            <span>Receita: ${fmt(p.receita)}</span>
+            <span>Receita: ${fmt(receita)}</span>
           </div>
           <div class="progress-bar">
             <div class="progress-fill" style="width:${pct}%;background:${pct > 90 ? 'var(--red)' : 'var(--accent)'}"></div>
@@ -2080,11 +2156,20 @@ function renderDashboard() {
   }
   document.getElementById('dash-projetos').innerHTML = projHtml;
 
-  // Últimos lançamentos
-  const recentes = [...DB.lancamentos].sort((a,b) => b.data.localeCompare(a.data)).slice(0, 10);
-  const dashOpts = {showNum:true, showOrig:false, showActions:true};
+  // Last 5 lancamentos — no filters
+  const recentes = [...DB.lancamentos]
+    .sort((a,b) => {
+      const d = b.data.localeCompare(a.data);
+      if (d !== 0) return d;
+      return (parseInt((b.transferNum||'0').replace(/\D/g,''))||0) - (parseInt((a.transferNum||'0').replace(/\D/g,''))||0);
+    })
+    .slice(0, 5);
+
+  const dashOpts = {showNum:true, showOrig:true, showActions:true};
   document.getElementById('dash-recentes-head').innerHTML = '<thead>' + lancTableHeader(dashOpts) + '</thead>';
-  document.getElementById('dash-recentes').innerHTML = recentes.map(l => lancRow(l, dashOpts)).join('');
+  document.getElementById('dash-recentes').innerHTML = recentes.length
+    ? recentes.map(l => lancRow(l, dashOpts)).join('')
+    : '<tr><td colspan="9"><div class="empty-state"><p>Nenhum lançamento</p></div></td></tr>';
 }
 
 // ==================== LANÇAMENTOS ====================
@@ -2138,7 +2223,7 @@ function lancRow(l, opts) {
   const showNum    = opts.showNum    !== false;
   const showOrig   = opts.showOrig   !== false;
   const showActions= opts.showActions!== false;
-  const origLabels = { extrato:'Extrato', cartao:'Cartão', manual:'Manual' };
+  const origLabels = { Pix:'Pix', 'Crédito':'Crédito', 'Débito':'Débito', Boleto:'Boleto', Dinheiro:'Dinheiro', 'Transferência':'Transferência', extrato:'Extrato', cartao:'Cartão', manual:'Manual' };
   return `<tr>
     ${showNum ? `<td style="color:var(--text3);font-size:11px;font-family:'DM Mono',monospace;white-space:nowrap">${l.transferNum||'—'}</td>` : ''}
     <td style="color:var(--text2);white-space:nowrap">${fmtDate(l.data)}</td>
@@ -2174,7 +2259,7 @@ function lancTableHeader(opts) {
     ${showNum ? '<th>Nº</th>' : ''}
     <th>Data</th><th>Descrição</th><th>Categoria</th><th>Projeto</th>
     <th>Fornecedor</th>
-    ${showOrig ? '<th>Origem</th>' : ''}
+    ${showOrig ? '<th>Pagamento</th>' : ''}
     <th>NF</th><th style="text-align:right">Valor</th>
     ${showActions ? '<th>Ações</th>' : ''}
   </tr>`;
@@ -2191,20 +2276,34 @@ function renderLancamentos() {
   populateSelect('filter-categoria', DB.categorias, 'id', 'nome', 'Todas as categorias');
   populateSelect('filter-fornecedor', DB.fornecedores, 'id', 'nome', 'Todos os fornecedores');
 
-  const fProj = document.getElementById('filter-projeto').value;
-  const fCat = document.getElementById('filter-categoria').value;
-  const fForn = document.getElementById('filter-fornecedor').value;
-  const fTipo = document.getElementById('filter-tipo').value;
+  const fProj  = document.getElementById('filter-projeto').value;
+  const fCat   = document.getElementById('filter-categoria').value;
+  const fForn  = document.getElementById('filter-fornecedor').value;
+  const fTipo  = document.getElementById('filter-tipo').value;
   const fBusca = (document.getElementById('filter-busca').value || '').toLowerCase();
+  const fDtIni = document.getElementById('filter-data-ini')?.value || '';
+  const fDtFim = document.getElementById('filter-data-fim')?.value || '';
 
   let list = DB.lancamentos.filter(l => {
-    if (fProj && l.projeto !== fProj) return false;
-    if (fCat && l.categoria !== fCat) return false;
-    if (fForn && l.fornecedor !== fForn) return false;
-    if (fTipo && l.tipo !== fTipo) return false;
-    if (fBusca && !l.descricao.toLowerCase().includes(fBusca)) return false;
+    if (fProj  && l.projeto    !== fProj)  return false;
+    if (fCat   && l.categoria  !== fCat)   return false;
+    if (fForn  && l.fornecedor !== fForn)  return false;
+    if (fTipo  && l.tipo       !== fTipo)  return false;
+    if (fDtIni && l.data < fDtIni)        return false;
+    if (fDtFim && l.data > fDtFim)        return false;
+    if (fBusca && !l.descricao.toLowerCase().includes(fBusca) &&
+        !(getFornecedor(l.fornecedor)?.nome || '').toLowerCase().includes(fBusca)) return false;
     return true;
-  }).sort((a,b) => b.data.localeCompare(a.data));
+  })
+  // Sort: newest date first, then by transferNum descending (most recently added first within same date)
+  .sort((a,b) => {
+    const dateDiff = b.data.localeCompare(a.data);
+    if (dateDiff !== 0) return dateDiff;
+    // Same date: sort by transferNum descending (higher = more recent)
+    const aNum = parseInt((a.transferNum||'0').replace(/\D/g,'')) || 0;
+    const bNum = parseInt((b.transferNum||'0').replace(/\D/g,'')) || 0;
+    return bNum - aNum;
+  });
 
   const tbody = document.getElementById('tabela-lancamentos');
   if (list.length === 0) {
@@ -2213,6 +2312,18 @@ function renderLancamentos() {
   }
 
   tbody.innerHTML = list.map(l => lancRow(l, {showNum:true, showOrig:true, showActions:true})).join('');
+}
+
+function limparFiltros() {
+  ['filter-projeto','filter-categoria','filter-fornecedor','filter-tipo','filter-busca'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const ini = document.getElementById('filter-data-ini');
+  const fim = document.getElementById('filter-data-fim');
+  if (ini) ini.value = '';
+  if (fim) fim.value = '';
+  renderLancamentos();
 }
 
 function editarLancamento(id) {
@@ -2226,14 +2337,15 @@ function editarLancamento(id) {
   document.getElementById('lanc-valor').value = l.valor;
   document.getElementById('lanc-origem').value = l.origem || 'manual';
   document.getElementById('lanc-obs').value = l.obs || '';
-  populateSelectEl('lanc-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
   populateSelectEl('lanc-projeto', DB.projetos, 'id', 'nome', '— Selecione —');
-  populateSelectEl('lanc-fornecedor', DB.fornecedores, 'id', 'nome', '— Selecione —');
-  document.getElementById('lanc-categoria').value = l.categoria || '';
   document.getElementById('lanc-projeto').value = l.projeto || '';
-  document.getElementById('lanc-fornecedor').value = l.fornecedor || '';
+  populateCombo('lanc-categoria', DB.categorias.map(c => ({value:c.id, label:c.nome})));
+  populateCombo('lanc-fornecedor', DB.fornecedores.map(f => ({value:f.id, label:f.nome})));
+  setComboValue('lanc-categoria', l.categoria || '');
+  setComboValue('lanc-fornecedor', l.fornecedor || '');
   if (l.nf) {
     document.getElementById('nf-filename').textContent = l.nf.name;
+    document.getElementById('nf-remove-btn').style.display = 'inline-flex';
     if (l.nf.driveUrl) {
       document.getElementById('nf-upload-status').style.display = 'flex';
       document.getElementById('nf-status-text').textContent = 'No Drive ✓';
@@ -2250,6 +2362,7 @@ function editarLancamento(id) {
     document.getElementById('nf-filename').textContent = 'Anexar NF (PDF, imagem)';
     document.getElementById('nf-upload-status').style.display = 'none';
     document.getElementById('nf-reenviar-btn').style.display = 'none';
+    document.getElementById('nf-remove-btn').style.display = 'none';
   }
   openModal('modal-lancamento');
 }
@@ -2273,9 +2386,9 @@ function renderProjetos() {
 
   grid.innerHTML = DB.projetos.map(p => {
     const custos = totalCustoProj(p.id);
-    const imp = impostoProj(p);
+    const imp = impostoVal(p);
     const lucro = lucroProj(p);
-    const pct = p.receita ? Math.min(100, Math.round(custos / p.receita * 100)) : 0;
+    const pct = receita ? Math.min(100, Math.round(custos / receita * 100)) : 0;
     const cli = getCliente(p.cliente);
     const cats = (p.categorias || []).map(cid => catBadge(cid)).join(' ');
     const impObj = getImposto(p.impostoId);
@@ -2298,7 +2411,7 @@ function renderProjetos() {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
           <div>
             <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Receita</div>
-            <div style="font-size:14px;font-weight:600;color:var(--accent);font-family:'DM Mono',monospace">${fmt(p.receita)}</div>
+            <div style="font-size:14px;font-weight:600;color:var(--accent);font-family:'DM Mono',monospace">${fmt(receita)}</div>
           </div>
           <div>
             <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Custos</div>
@@ -2331,9 +2444,10 @@ function detalheProj(id) {
   const p = getProjeto(id);
   if (!p) return;
   const lancamentos = lancamentosDoProj(id);
-  const custos = totalCustoProj(id);
-  const imp = impostoProj(p);
-  const lucro = lucroProj(p);
+  const receita = totalReceitaProj(id);
+  const custos  = totalCustoProj(id);
+  const imp     = impostoVal(p);
+  const lucro   = lucroProj(p);
   const cli = getCliente(p.cliente);
   const impObj = getImposto(p.impostoId);
   const impPct = p.impostoPct != null && p.impostoPct !== '' ? p.impostoPct : (impObj?.pct || 0);
@@ -2371,7 +2485,7 @@ function detalheProj(id) {
   document.getElementById('proj-det-titulo').textContent = p.nome;
   document.getElementById('proj-det-body').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
-      <div class="stat-card"><div class="stat-label">Receita</div><div class="stat-value green">${fmt(p.receita)}</div></div>
+      <div class="stat-card"><div class="stat-label">Receita</div><div class="stat-value green">${fmt(receita)}</div></div>
       <div class="stat-card"><div class="stat-label">Custos totais</div><div class="stat-value red">${fmt(custos)}</div></div>
       <div class="stat-card"><div class="stat-label">Imposto${impObj ? ` (${impPct}%)` : ''}</div><div class="stat-value" style="color:var(--amber)">−${fmt(imp)}</div></div>
     </div>
@@ -2620,7 +2734,6 @@ function resetFornecedorModal() {
   document.getElementById('forn-nome').value = '';
   document.getElementById('forn-doc').value = '';
   document.getElementById('forn-obs').value = '';
-  populateSelectEl('forn-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
 }
 
 function editarFornecedor(id) {
@@ -2650,16 +2763,15 @@ function salvarFornecedor() {
   const id = document.getElementById('forn-id').value;
   const nome = document.getElementById('forn-nome').value.trim();
   const doc = document.getElementById('forn-doc').value.trim();
-  const categoria = document.getElementById('forn-categoria').value;
   const obs = document.getElementById('forn-obs').value.trim();
   if (!nome) { alert('Informe o nome do fornecedor.'); return; }
   let newId = id;
   if (id) {
     const f = getFornecedor(id);
-    if (f) Object.assign(f, { nome, doc, categoria, obs });
+    if (f) Object.assign(f, { nome, doc, obs });
   } else {
     newId = uid();
-    DB.fornecedores.push({ id: newId, nome, doc, categoria, obs });
+    DB.fornecedores.push({ id: newId, nome, doc, obs });
   }
   save();
   closeFornecedorModal();
@@ -2757,10 +2869,10 @@ function salvarLancamento() {
   const tipo = document.getElementById('lanc-tipo').value;
   const descricao = document.getElementById('lanc-descricao').value.trim();
   const valor = parseFloat(document.getElementById('lanc-valor').value);
-  const categoria = document.getElementById('lanc-categoria').value;
+  const categoria = getComboValue('lanc-categoria');
   const projeto = document.getElementById('lanc-projeto').value;
   const origem = document.getElementById('lanc-origem').value;
-  const fornecedor = document.getElementById('lanc-fornecedor').value;
+  const fornecedor = getComboValue('lanc-fornecedor');
   const obs = document.getElementById('lanc-obs').value.trim();
 
   if (!data || !descricao || isNaN(valor) || valor <= 0) {
@@ -2890,9 +3002,12 @@ function resetLancamentoModal() {
   document.getElementById('nf-filename').textContent = 'Anexar NF (PDF, imagem)';
   document.getElementById('nf-upload-status').style.display = 'none';
   document.getElementById('nf-reenviar-btn').style.display = 'none';
-  populateSelectEl('lanc-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
+  document.getElementById('nf-remove-btn').style.display = 'none';
   populateSelectEl('lanc-projeto', DB.projetos, 'id', 'nome', '— Selecione —');
-  populateSelectEl('lanc-fornecedor', DB.fornecedores, 'id', 'nome', '— Selecione —');
+  populateCombo('lanc-categoria', DB.categorias.map(c => ({value:c.id, label:c.nome})));
+  populateCombo('lanc-fornecedor', DB.fornecedores.map(f => ({value:f.id, label:f.nome})));
+  resetCombo('lanc-categoria');
+  resetCombo('lanc-fornecedor');
   pendingNF = null;
 }
 
@@ -2902,6 +3017,10 @@ function openModal(id) {
     // Only reset if NOT being called from editarLancamento (which sets lanc-id before calling openModal)
     if (!document.getElementById('lanc-id').value) {
       resetLancamentoModal();
+    } else {
+      // Re-init combos in case DB changed
+      populateCombo('lanc-categoria', DB.categorias.map(c => ({value:c.id, label:c.nome})));
+      populateCombo('lanc-fornecedor', DB.fornecedores.map(f => ({value:f.id, label:f.nome})));
     }
   }
   if (id === 'modal-projeto') {
@@ -2931,11 +3050,7 @@ function openModal(id) {
       document.getElementById('forn-doc').value = '';
       document.getElementById('forn-obs').value = '';
     }
-    populateSelectEl('forn-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
-    if (document.getElementById('forn-id').value) {
-      const f = getFornecedor(document.getElementById('forn-id').value);
-      if (f) document.getElementById('forn-categoria').value = f.categoria || '';
-    }
+
   }
   if (id === 'modal-categoria') {
     if (!document.getElementById('cat-id').value) {
@@ -2978,15 +3093,17 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 function populateSelect(id, items, valKey, labelKey, placeholder) {
   const sel = document.getElementById(id);
   const current = sel.value;
+  const sorted = [...items].sort((a,b) => (a[labelKey]||'').localeCompare(b[labelKey]||'', 'pt-BR'));
   sel.innerHTML = `<option value="">${placeholder}</option>` +
-    items.map(i => `<option value="${i[valKey]}">${i[labelKey]}</option>`).join('');
+    sorted.map(i => `<option value="${i[valKey]}">${i[labelKey]}</option>`).join('');
   sel.value = current;
 }
 
 function populateSelectEl(id, items, valKey, labelKey, placeholder, labelFn) {
   const sel = document.getElementById(id);
+  const sorted = [...items].sort((a,b) => (a[labelKey]||'').localeCompare(b[labelKey]||'', 'pt-BR'));
   sel.innerHTML = `<option value="">${placeholder}</option>` +
-    items.map(i => `<option value="${i[valKey]}">${labelFn ? labelFn(i) : i[labelKey]}</option>`).join('');
+    sorted.map(i => `<option value="${i[valKey]}">${labelFn ? labelFn(i) : i[labelKey]}</option>`).join('');
 }
 
 // ==================== PROJ CATEGORIAS TAGS ====================
@@ -3019,6 +3136,96 @@ function renderProjCategorias(initial) {
   }
 }
 
+// ==================== SEARCHABLE COMBO ====================
+
+const _comboData = {}; // { fieldId: [{value, label}] }
+
+function initCombo(fieldId, items) {
+  _comboData[fieldId] = items;
+  renderComboList(fieldId, '');
+  // Set display value if hidden input already has a value
+  const hidden = document.getElementById(fieldId);
+  if (hidden && hidden.value) {
+    const found = items.find(i => i.value === hidden.value);
+    const search = document.getElementById(fieldId + '-search');
+    if (found && search) search.value = found.label;
+  }
+}
+
+function renderComboList(fieldId, query) {
+  const list = document.getElementById('combo-' + fieldId);
+  if (!list) return;
+  const items = _comboData[fieldId] || [];
+  const q = query.toLowerCase();
+  const filtered = q ? items.filter(i => i.label.toLowerCase().includes(q)) : items;
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="combo-item-empty">Nenhum resultado</div>';
+  } else {
+    const hidden = document.getElementById(fieldId);
+    const cur = hidden ? hidden.value : '';
+    list.innerHTML = '<div class="combo-item" onclick="selectCombo(\''+fieldId+'\',\'\',\'\')"><em style="color:var(--text3)">— Nenhum —</em></div>' +
+      filtered.map(i => `<div class="combo-item${i.value===cur?' selected':''}" onclick="selectCombo('${fieldId}','${i.value}','${i.label.replace(/'/g,"\\'")}')">
+        ${i.label}
+      </div>`).join('');
+  }
+}
+
+function filterCombo(fieldId, searchId) {
+  const q = document.getElementById(searchId)?.value || '';
+  renderComboList(fieldId, q);
+  openCombo(fieldId);
+  // Clear hidden value when user types
+  const hidden = document.getElementById(fieldId);
+  if (hidden) hidden.value = '';
+}
+
+function openCombo(fieldId) {
+  document.getElementById('combo-' + fieldId)?.classList.add('open');
+}
+
+function closeCombo(fieldId) {
+  const list = document.getElementById('combo-' + fieldId);
+  if (list) list.classList.remove('open');
+  // If nothing selected, clear search input
+  const hidden = document.getElementById(fieldId);
+  const search = document.getElementById(fieldId + '-search');
+  if (hidden && !hidden.value && search) search.value = '';
+}
+
+function selectCombo(fieldId, value, label) {
+  const hidden = document.getElementById(fieldId);
+  const search = document.getElementById(fieldId + '-search');
+  if (hidden) hidden.value = value;
+  if (search) search.value = label;
+  closeCombo(fieldId);
+}
+
+function getComboValue(fieldId) {
+  const hidden = document.getElementById(fieldId);
+  return hidden ? hidden.value : '';
+}
+
+function setComboValue(fieldId, value) {
+  const hidden = document.getElementById(fieldId);
+  const search = document.getElementById(fieldId + '-search');
+  if (hidden) hidden.value = value;
+  const items = _comboData[fieldId] || [];
+  const found = items.find(i => i.value === value);
+  if (search) search.value = found ? found.label : '';
+}
+
+function resetCombo(fieldId) {
+  const hidden = document.getElementById(fieldId);
+  const search = document.getElementById(fieldId + '-search');
+  if (hidden) hidden.value = '';
+  if (search) search.value = '';
+}
+
+function populateCombo(fieldId, items) {
+  const sorted = [...items].sort((a,b) => (a.label||'').localeCompare(b.label||'', 'pt-BR'));
+  initCombo(fieldId, sorted);
+}
+
 // ==================== NF HANDLING ====================
 
 let pendingNF = null;
@@ -3029,10 +3236,30 @@ function handleNFSelect(input) {
   const name = file.name;
   document.getElementById('nf-filename').textContent = name;
   pendingNF = { name, file, driveUrl: null };
-
-  // Show uploading status
   document.getElementById('nf-upload-status').style.display = 'flex';
   document.getElementById('nf-status-text').textContent = 'Pronto para envio — será carregado ao salvar';
+  document.getElementById('nf-remove-btn').style.display = 'inline-flex';
+}
+
+function removerNF() {
+  if (!confirm('Remover a NF deste lançamento?')) return;
+  const lancId = document.getElementById('lanc-id').value;
+  pendingNF = null;
+  document.getElementById('nf-filename').textContent = 'Anexar NF (PDF, imagem)';
+  document.getElementById('nf-upload-status').style.display = 'none';
+  document.getElementById('nf-reenviar-btn').style.display = 'none';
+  document.getElementById('nf-remove-btn').style.display = 'none';
+  document.getElementById('lanc-nf').value = '';
+  // If editing existing lancamento, mark NF as removed
+  if (lancId) {
+    const lanc = DB.lancamentos.find(l => l.id === lancId);
+    if (lanc) {
+      lanc.nf = null;
+      save();
+      renderLancamentos();
+      renderDashboard();
+    }
+  }
 }
 
 // ==================== GOOGLE DRIVE AUTH BUTTON ====================
