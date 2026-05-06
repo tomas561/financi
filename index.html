@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Financi v1.2.0</title>
+<title>Financi v1.2.6</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <!-- Firebase Realtime Database (plano gratuito Spark) -->
@@ -870,7 +870,7 @@
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div class="login-box" id="login-box">
-    <div class="login-logo">Financi <span>v1.2.0</span></div>
+    <div class="login-logo">Financi <span>v1.2.6</span></div>
     <div class="login-sub">Gestão Financeira · Monosup Games</div>
 
     <label class="login-label" for="login-pwd">Senha de acesso</label>
@@ -895,7 +895,7 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="sidebar-brand">
-    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.2.0</span></h1>
+    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.2.6</span></h1>
     <p>Gestão Financeira</p>
   </div>
   <div class="sidebar-nav">
@@ -926,17 +926,14 @@
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="14" height="9" rx="1.5"/><path d="M4 4V3a1 1 0 011-1h6a1 1 0 011 1v1"/><path d="M8 9V7m0 0l-2 1m2-1l2 1"/></svg>
       <span>Fornecedores</span>
     </button>
-    <button class="nav-item" onclick="showPage('impostos')">
-      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>
-      <span>Impostos</span>
-    </button>
+
   </div>
 </nav>
 
 <!-- MAIN CONTENT -->
 <main class="main">
 <div id="topbar" style="background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;">
-  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.2.0</span>
+  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.2.6</span>
   <div style="display:flex;align-items:center;gap:12px;">
     <span style="font-size:12px;color:var(--text3)">Dados:</span>
     <span id="sync-status" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;">
@@ -1086,6 +1083,24 @@
     <div id="grid-projetos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;"></div>
   </div>
 
+  <!-- DETALHE PROJETO (full page) -->
+  <div class="page" id="page-detalhe-projeto">
+    <div class="page-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn" onclick="navigateToPage('projetos')" style="gap:6px">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 3L5 8l5 5"/></svg>
+          Voltar aos projetos
+        </button>
+        <div>
+          <div class="page-title" id="det-proj-titulo">Projeto</div>
+          <div class="page-sub" id="det-proj-sub"></div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="editarProjetoFromPage()" id="det-proj-edit-btn">Editar projeto</button>
+    </div>
+    <div id="det-proj-body"></div>
+  </div>
+
   <!-- CATEGORIAS -->
   <div class="page" id="page-categorias">
     <div class="page-header">
@@ -1117,23 +1132,6 @@
     </div>
     <div class="card">
       <div id="lista-clientes"></div>
-    </div>
-  </div>
-
-  <!-- IMPOSTOS -->
-  <div class="page" id="page-impostos">
-    <div class="page-header">
-      <div>
-        <div class="page-title">Impostos</div>
-        <div class="page-sub">Tipos de imposto disponíveis</div>
-      </div>
-      <button class="btn btn-primary" onclick="openModal('modal-imposto')">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
-        Novo imposto
-      </button>
-    </div>
-    <div class="card">
-      <div id="lista-impostos"></div>
     </div>
   </div>
 
@@ -1292,11 +1290,11 @@
               <span id="nf-filename">Anexar NF (PDF, imagem)</span>
               <input type="file" id="lanc-nf" accept=".pdf,.jpg,.jpeg,.png,.webp" onchange="handleNFSelect(this)">
             </label>
-            <button type="button" id="nf-remove-btn" class="btn btn-sm btn-danger" style="display:none;margin-top:6px" onclick="removerNF()">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/></svg>
-              Remover NF
-            </button>
           </div>
+          <button type="button" id="nf-remove-btn" class="btn btn-sm btn-danger" style="display:none;margin-top:6px" onclick="removerNF()">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 10h8l1-10"/></svg>
+            Remover NF
+          </button>
           <div id="nf-upload-status" style="display:none" class="upload-status">
             <svg width="12" height="12" viewBox="0 0 16 16" fill="var(--accent)"><circle cx="8" cy="8" r="7"/><path d="M5 8l2 2 4-4" stroke="white" stroke-width="1.5" fill="none"/></svg>
             <span id="nf-status-text"></span>
@@ -1445,30 +1443,7 @@
   </div>
 </div>
 
-<!-- MODAL IMPOSTO -->
-<div class="modal-overlay" id="modal-imposto">
-  <div class="modal" style="max-width:400px">
-    <div class="modal-header">
-      <div class="modal-title">Novo imposto</div>
-      <button class="modal-close" onclick="closeModal('modal-imposto')">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="imp-id">
-      <div class="form-group" style="margin-bottom:12px">
-        <label>Nome *</label>
-        <input type="text" id="imp-nome" placeholder="Ex: ISS, Simples Nacional...">
-      </div>
-      <div class="form-group">
-        <label>Alíquota padrão (%)</label>
-        <input type="number" id="imp-pct" step="0.01" min="0" max="100" placeholder="0,00">
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-imposto')">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarImposto()">Salvar</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- MODAL FORNECEDOR -->
 <div class="modal-overlay" id="modal-fornecedor">
@@ -1499,19 +1474,7 @@
   </div>
 </div>
 
-<!-- MODAL DETALHE PROJETO -->
-<div class="modal-overlay" id="modal-proj-detalhe">
-  <div class="modal" style="max-width:680px">
-    <div class="modal-header">
-      <div class="modal-title" id="proj-det-titulo"></div>
-      <button class="modal-close" onclick="closeModal('modal-proj-detalhe')">×</button>
-    </div>
-    <div class="modal-body" id="proj-det-body"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="closeModal('modal-proj-detalhe')">Fechar</button>
-    </div>
-  </div>
-</div>
+<!-- modal-proj-detalhe removed: now uses full page -->
 
 <script>
 // ==================== DATA STORE ====================
@@ -2049,9 +2012,9 @@ function renderPage(page) {
   if (page === 'dashboard') renderDashboard();
   else if (page === 'lancamentos') renderLancamentos();
   else if (page === 'projetos') renderProjetos();
+  else if (page === 'detalhe-projeto') { renderProjStats(); renderProjLancamentos(); }
   else if (page === 'categorias') renderCategorias();
   else if (page === 'clientes') renderClientes();
-  else if (page === 'impostos') renderImpostos();
   else if (page === 'fornecedores') renderFornecedores();
 }
 
@@ -2227,7 +2190,9 @@ function lancRow(l, opts) {
     <td>${fornCell(l)}</td>
     ${showOrig ? `<td><span class="badge badge-gray" style="font-size:10px">${origLabels[l.origem]||l.origem||'—'}</span></td>` : ''}
     <td>${nfCell(l)}</td>
-    <td style="text-align:right" class="${l.tipo==='custo'?'amount-negative':'amount-positive'}">${l.tipo==='custo'?'−':'+'}${fmt(l.valor)}</td>
+    <td style="text-align:right;font-family:'DM Mono',monospace;font-size:13px;color:${l.tipo==='receita'?'var(--accent)':l.tipo==='imposto'?'var(--amber)':'var(--red)'}">
+      ${l.tipo==='receita'?'+':'−'}${fmt(l.valor)}
+    </td>
     ${showActions ? `<td>
       <div style="display:flex;gap:4px">
         <button class="btn btn-sm btn-icon" title="Editar" onclick="editarLancamento('${l.id}')">
@@ -2257,8 +2222,7 @@ function lancTableHeader(opts) {
 }
 
 function irParaProjeto(projId) {
-  navigateToPage('projetos');
-  setTimeout(() => detalheProj(projId), 80);
+  detalheProj(projId);
 }
 
 function renderLancamentos() {
@@ -2364,6 +2328,10 @@ function excluirLancamento(id) {
   save();
   renderLancamentos();
   renderDashboard();
+  if (_currentProjId && document.getElementById('page-detalhe-projeto').classList.contains('active')) {
+    renderProjStats();
+    renderProjLancamentos();
+  }
 }
 
 // ==================== PROJETOS ====================
@@ -2430,76 +2398,180 @@ function renderProjetos() {
   }).join('');
 }
 
+let _currentProjId = null;
+let _editFromProjPage = false;
+
+// ── Render just the lancamentos table inside the project page ─────────────
+function renderProjLancamentos() {
+  const container = document.getElementById('det-proj-lanc-container');
+  if (!container || !_currentProjId) return;
+
+  const p = getProjeto(_currentProjId);
+  if (!p) return;
+
+  // Read filters
+  const fTipo  = document.getElementById('det-filter-tipo')?.value  || '';
+  const fCat   = document.getElementById('det-filter-cat')?.value   || '';
+  const fForn  = document.getElementById('det-filter-forn')?.value  || '';
+  const fBusca = (document.getElementById('det-filter-busca')?.value || '').toLowerCase();
+
+  let lancs = lancamentosDoProj(_currentProjId).filter(l => {
+    if (fTipo && l.tipo       !== fTipo)  return false;
+    if (fCat  && l.categoria  !== fCat)   return false;
+    if (fForn && l.fornecedor !== fForn)  return false;
+    if (fBusca && !l.descricao.toLowerCase().includes(fBusca) &&
+        !(getFornecedor(l.fornecedor)?.nome||'').toLowerCase().includes(fBusca)) return false;
+    return true;
+  }).sort((a,b) => {
+    const d = b.data.localeCompare(a.data);
+    if (d !== 0) return d;
+    return (parseInt((b.transferNum||'0').replace(/\D/g,''))||0) -
+           (parseInt((a.transferNum||'0').replace(/\D/g,''))||0);
+  });
+
+  if (lancs.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>Nenhum lançamento encontrado</p></div>';
+    return;
+  }
+  container.innerHTML =
+    '<div class="table-wrap"><table><thead>' +
+    lancTableHeader({showNum:true, showOrig:true, showActions:true}) +
+    '</thead><tbody>' +
+    lancs.map(l => lancRow(l, {showNum:true, showOrig:true, showActions:true})).join('') +
+    '</tbody></table></div>';
+}
+
+// ── Render the stat cards at the top of the project page ──────────────────
+function renderProjStats() {
+  if (!_currentProjId) return;
+  const p = getProjeto(_currentProjId);
+  if (!p) return;
+  const receita  = totalReceitaProj(_currentProjId);
+  const custos   = totalCustoProj(_currentProjId);
+  const impostos = totalImpostoProj(_currentProjId);
+  const lucro    = lucroProj(p);
+  const statsEl  = document.getElementById('det-proj-stats');
+  if (!statsEl) return;
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Receita</div><div class="stat-value green">${fmt(receita)}</div></div>
+    <div class="stat-card"><div class="stat-label">Custos</div><div class="stat-value red">−${fmt(custos)}</div></div>
+    <div class="stat-card"><div class="stat-label">Impostos</div><div class="stat-value" style="color:var(--amber)">−${fmt(impostos)}</div></div>
+    <div class="stat-card" style="background:${lucro >= 0 ? 'var(--accent-light)' : 'var(--red-light)'}">
+      <div class="stat-label">Resultado</div>
+      <div class="stat-value ${lucro >= 0 ? 'green' : 'red'}">${fmt(lucro)}</div>
+    </div>`;
+}
+
 function detalheProj(id) {
   const p = getProjeto(id);
   if (!p) return;
-  const lancamentos = lancamentosDoProj(id);
+  _currentProjId = id;
+
   const receita  = totalReceitaProj(id);
   const custos   = totalCustoProj(id);
   const impostos = totalImpostoProj(id);
   const lucro    = lucroProj(p);
   const cli      = getCliente(p.cliente);
 
-  // Custo por categoria
+  // Category breakdown (custos + impostos)
+  const allLancs = lancamentosDoProj(id);
   const catMap = {};
-  lancamentos.forEach(l => {
+  allLancs.filter(l => l.tipo === 'custo' || l.tipo === 'imposto').forEach(l => {
     const key = l.categoria || '__sem__';
     catMap[key] = (catMap[key] || 0) + l.valor;
   });
   const catTotal = Object.values(catMap).reduce((s, v) => s + v, 0);
   const colorMap = { green:'var(--accent)', blue:'var(--accent2)', amber:'var(--amber)', red:'var(--red)', purple:'var(--purple)', gray:'var(--text3)' };
-
   const catBreakdownHtml = Object.entries(catMap).length === 0
-    ? '<div style="color:var(--text3);font-size:12px">Nenhum custo registrado</div>'
+    ? '<div style="color:var(--text3);font-size:12px;padding:8px 0">Sem lançamentos categorizados</div>'
     : Object.entries(catMap).sort((a,b) => b[1]-a[1]).map(([cid, val]) => {
         const cat = cid === '__sem__' ? null : getCategoria(cid);
         const nome = cat ? cat.nome : 'Sem categoria';
         const cor = cat ? (colorMap[cat.cor] || 'var(--text3)') : 'var(--text3)';
         const pct = catTotal ? Math.round(val / catTotal * 100) : 0;
-        return `
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-            <div style="flex:1">
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-                <span style="font-weight:500;color:var(--text)">${nome}</span>
-                <span style="font-family:'DM Mono',monospace;color:var(--text2)">${fmt(val)} <span style="color:var(--text3)">(${pct}%)</span></span>
-              </div>
-              <div class="progress-bar">
-                <div class="progress-fill" style="width:${pct}%;background:${cor}"></div>
-              </div>
-            </div>
-          </div>`;
+        return `<div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+            <span style="font-weight:500">${nome}</span>
+            <span style="font-family:'DM Mono',monospace;color:var(--text2)">${fmt(val)} <span style="color:var(--text3)">(${pct}%)</span></span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cor}"></div></div>
+        </div>`;
       }).join('');
 
-  document.getElementById('proj-det-titulo').textContent = p.nome;
-  document.getElementById('proj-det-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:20px">
-      <div class="stat-card"><div class="stat-label">Receita</div><div class="stat-value green">${fmt(receita)}</div></div>
-      <div class="stat-card"><div class="stat-label">Custos</div><div class="stat-value red">−${fmt(custos)}</div></div>
-      <div class="stat-card"><div class="stat-label">Impostos</div><div class="stat-value" style="color:var(--amber)">−${fmt(impostos)}</div></div>
-      <div class="stat-card" style="background:${lucro >= 0 ? 'var(--accent-light)' : 'var(--red-light)'}">
-        <div class="stat-label">Resultado</div>
-        <div class="stat-value ${lucro >= 0 ? 'green' : 'red'}">${fmt(lucro)}</div>
+  const cats = (p.categorias || []).map(cid => catBadge(cid)).join(' ');
+
+  // Build filter options for lancamentos
+  const tipoOpts = ['','custo','receita','imposto'].map(v =>
+    `<option value="${v}">${v === '' ? 'Todos os tipos' : v.charAt(0).toUpperCase()+v.slice(1)}</option>`).join('');
+
+  const projCats = [...new Set(allLancs.map(l => l.categoria).filter(Boolean))];
+  const catOpts  = '<option value="">Todas as categorias</option>' +
+    projCats.sort((a,b) => (getCategoria(a)?.nome||'').localeCompare(getCategoria(b)?.nome||'','pt-BR'))
+      .map(cid => { const c = getCategoria(cid); return c ? `<option value="${cid}">${c.nome}</option>` : ''; }).join('');
+
+  const projForns = [...new Set(allLancs.map(l => l.fornecedor).filter(Boolean))];
+  const fornOpts = '<option value="">Todos os fornecedores</option>' +
+    projForns.sort((a,b) => (getFornecedor(a)?.nome||'').localeCompare(getFornecedor(b)?.nome||'','pt-BR'))
+      .map(fid => { const f = getFornecedor(fid); return f ? `<option value="${fid}">${f.nome}</option>` : ''; }).join('');
+
+  // Set page title
+  document.getElementById('det-proj-titulo').textContent = p.nome;
+  document.getElementById('det-proj-sub').textContent = (cli ? cli.nome + ' · ' : '') + p.status.charAt(0).toUpperCase() + p.status.slice(1);
+
+  // Render full page structure (static parts only — lancamentos rendered separately)
+  document.getElementById('det-proj-body').innerHTML = `
+    <div id="det-proj-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Informações</div>
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+          ${cli ? `<div><span style="color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Cliente</span><div style="margin-top:2px">${cli.nome}</div></div>` : ''}
+          <div><span style="color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Status</span><div style="margin-top:4px">${statusBadge(p.status)}</div></div>
+          ${p.inicio ? `<div><span style="color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Período</span><div style="margin-top:2px">${fmtDate(p.inicio)}${p.termino ? ' → ' + fmtDate(p.termino) : ''}</div></div>` : ''}
+          ${cats ? `<div><span style="color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Categorias</span><div class="tag-list" style="margin-top:6px">${cats}</div></div>` : ''}
+          ${p.obs ? `<div><span style="color:var(--text3);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Observações</span><div style="margin-top:2px;color:var(--text2)">${p.obs}</div></div>` : ''}
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text2)">Gastos por categoria</div>
+        ${catBreakdownHtml}
       </div>
     </div>
-    <div style="display:flex;gap:16px;font-size:12px;color:var(--text2);margin-bottom:20px;flex-wrap:wrap">
-      <span><strong>Cliente:</strong> ${cli ? cli.nome : '—'}</span>
-      <span><strong>Status:</strong> ${p.status}</span>
-      ${p.inicio ? `<span><strong>Início:</strong> ${fmtDate(p.inicio)}</span>` : ''}
-      ${p.termino ? `<span><strong>Término:</strong> ${fmtDate(p.termino)}</span>` : ''}
-    </div>
 
-    <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2)">Custos por categoria</div>
-    <div style="margin-bottom:24px">${catBreakdownHtml}</div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:600;color:var(--text2)">Lançamentos (${allLancs.length})</div>
+        <button class="btn btn-sm btn-primary" onclick="novoLancamentoProjeto('${id}')">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v12M2 8h12"/></svg>
+          Novo lançamento
+        </button>
+      </div>
+      <div class="filter-row" style="margin-bottom:12px">
+        <select id="det-filter-tipo" onchange="renderProjLancamentos()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius)">${tipoOpts}</select>
+        <select id="det-filter-cat"  onchange="renderProjLancamentos()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius)">${catOpts}</select>
+        <select id="det-filter-forn" onchange="renderProjLancamentos()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius)">${fornOpts}</select>
+        <input type="text" id="det-filter-busca" placeholder="Buscar..." oninput="renderProjLancamentos()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius);width:140px">
+      </div>
+      <div id="det-proj-lanc-container"></div>
+    </div>`;
 
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)">Todos os lançamentos</div>
-    ${lancamentos.length === 0 ? '<div class="empty-state"><p>Nenhum custo registrado</p></div>' :
-      '<div class="table-wrap"><table><thead>' +
-      lancTableHeader({showNum:true, showOrig:true, showActions:true}) +
-      '</thead><tbody>' +
-      lancamentos.map(l => lancRow(l, {showNum:true, showOrig:true, showActions:true})).join('') +
-      '</tbody></table></div>'}`;
+  // Render stats and lancamentos into their containers
+  renderProjStats();
+  renderProjLancamentos();
 
-  openModal('modal-proj-detalhe');
+  navigateToPage('detalhe-projeto');
+}
+
+
+function editarProjetoFromPage() {
+  if (_currentProjId) editarProjeto(_currentProjId);
+}
+
+function novoLancamentoProjeto(projId) {
+  resetLancamentoModal();
+  document.getElementById('lanc-projeto').value = projId;
+  openModal('modal-lancamento');
 }
 
 function editarProjeto(id) {
@@ -2628,55 +2700,7 @@ function excluirCliente(id) {
   renderClientes();
 }
 
-// ==================== IMPOSTOS ====================
 
-function renderImpostos() {
-  const el = document.getElementById('lista-impostos');
-  if (DB.impostos.length === 0) {
-    el.innerHTML = '<div class="empty-state"><p>Nenhum imposto cadastrado</p></div>';
-    return;
-  }
-  el.innerHTML = `
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Nome</th><th>Alíquota padrão</th><th>Projetos usando</th><th>Ações</th></tr></thead>
-        <tbody>
-          ${DB.impostos.map(i => {
-            const count = DB.projetos.filter(p => p.impostoId === i.id).length;
-            return `
-              <tr>
-                <td style="font-weight:500">${i.nome}</td>
-                <td><span class="badge badge-red">${i.pct}%</span></td>
-                <td style="color:var(--text2)">${count}</td>
-                <td>
-                  <div style="display:flex;gap:4px">
-                    <button class="btn btn-sm" onclick="editarImposto('${i.id}')">Editar</button>
-                    <button class="btn btn-sm btn-danger" onclick="excluirImposto('${i.id}')">Excluir</button>
-                  </div>
-                </td>
-              </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>`;
-}
-
-function editarImposto(id) {
-  const i = getImposto(id);
-  if (!i) return;
-  document.getElementById('imp-id').value = i.id;
-  document.getElementById('imp-nome').value = i.nome;
-  document.getElementById('imp-pct').value = i.pct;
-  openModal('modal-imposto');
-}
-
-function excluirImposto(id) {
-  if (!confirm('Excluir este imposto?')) return;
-  DB.impostos = DB.impostos.filter(i => i.id !== id);
-  DB.projetos.forEach(p => { if (p.impostoId === id) { p.impostoId = ''; } });
-  save();
-  renderImpostos();
-}
 
 // ==================== FORNECEDORES ====================
 
@@ -2889,6 +2913,12 @@ function salvarLancamento() {
   closeModal('modal-lancamento');
   renderLancamentos();
   renderDashboard();
+  // Refresh project page if we came from it
+  if (_editFromProjPage && _currentProjId) {
+    _editFromProjPage = false;
+    renderProjStats();
+    renderProjLancamentos();
+  }
   pendingNF = null;
 }
 
@@ -2950,21 +2980,7 @@ function salvarCliente() {
   renderClientes();
 }
 
-function salvarImposto() {
-  const id = document.getElementById('imp-id').value;
-  const nome = document.getElementById('imp-nome').value.trim();
-  const pct = parseFloat(document.getElementById('imp-pct').value) || 0;
-  if (!nome) { alert('Informe o nome.'); return; }
-  if (id) {
-    const i = getImposto(id);
-    if (i) { i.nome = nome; i.pct = pct; }
-  } else {
-    DB.impostos.push({ id: uid(), nome, pct });
-  }
-  save();
-  closeModal('modal-imposto');
-  renderImpostos();
-}
+
 
 // ==================== MODAL HELPERS ====================
 
@@ -3041,18 +3057,12 @@ function openModal(id) {
       document.getElementById('cli-doc').value = '';
     }
   }
-  if (id === 'modal-imposto') {
-    if (!document.getElementById('imp-id').value) {
-      document.getElementById('imp-nome').value = '';
-      document.getElementById('imp-pct').value = '';
-    }
-  }
 }
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
   // Reset IDs
-  ['cat-id','cli-id','imp-id','proj-id','lanc-id','forn-id'].forEach(fid => {
+  ['cat-id','cli-id','proj-id','lanc-id','forn-id'].forEach(fid => {
     const el = document.getElementById(fid);
     if (el) el.value = '';
   });
