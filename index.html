@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Financi v1.2.6</title>
+<title>Financi v1.2.7</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <!-- Firebase Realtime Database (plano gratuito Spark) -->
@@ -60,10 +60,12 @@
 
     async function init() {
       setSyncStatus('warn', 'Conectando...');
+      console.log('🔥 Firebase init | project:', FIREBASE_CONFIG.projectId, '| db:', FIREBASE_CONFIG.databaseURL);
       try {
         const app  = initializeApp(FIREBASE_CONFIG);
         const rtdb = getDatabase(app);
         const dbRef = ref(rtdb, DB_PATH);
+        console.log('🔥 Firebase app created, trying DB read...');
 
         // ── Expose save function to main script ───────────────────────────
         window._cloudSave = async (data) => {
@@ -99,10 +101,16 @@
           applyIncoming(snap.val());
         });
 
+        console.log('🔥 Firebase conectado com sucesso!');
         setSyncStatus('ok', '☁️ Nuvem (Firebase)');
       } catch(e) {
-        console.error('Firebase init:', e.message);
-        setSyncStatus('err', 'Firebase offline — dados locais');
+        console.error('🔥 Firebase ERRO:', e.code, e.message, e);
+        let msg = 'Firebase offline';
+        if (e.code === 'app/duplicate-app')      msg = 'Recarregue a página (app duplicado)';
+        else if (e.code?.includes('permission')) msg = 'Sem permissão — verifique regras';
+        else if (e.code?.includes('network'))    msg = 'Sem rede para Firebase';
+        else if (e.message)                      msg = e.message.slice(0, 50);
+        setSyncStatus('err', msg);
         if (window._firebaseReadyResolve) window._firebaseReadyResolve();
       }
     }
@@ -870,7 +878,7 @@
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div class="login-box" id="login-box">
-    <div class="login-logo">Financi <span>v1.2.6</span></div>
+    <div class="login-logo">Financi <span>v1.2.7</span></div>
     <div class="login-sub">Gestão Financeira · Monosup Games</div>
 
     <label class="login-label" for="login-pwd">Senha de acesso</label>
@@ -895,7 +903,7 @@
 <!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="sidebar-brand">
-    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.2.6</span></h1>
+    <h1>Financi <span style="font-size:10px;font-weight:400;background:var(--accent-light);color:var(--accent);padding:1px 6px;border-radius:10px;vertical-align:middle;letter-spacing:0.3px">v1.2.7</span></h1>
     <p>Gestão Financeira</p>
   </div>
   <div class="sidebar-nav">
@@ -933,7 +941,7 @@
 <!-- MAIN CONTENT -->
 <main class="main">
 <div id="topbar" style="background:var(--surface);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:100;">
-  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.2.6</span>
+  <span style="font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.5px;position:absolute;top:3px;left:50%;transform:translateX(-50%)">v1.2.7</span>
   <div style="display:flex;align-items:center;gap:12px;">
     <span style="font-size:12px;color:var(--text3)">Dados:</span>
     <span id="sync-status" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:4px;">
@@ -2090,7 +2098,8 @@ function renderDashboard() {
     projHtml = '<div class="empty-state"><p>Nenhum projeto</p></div>';
   } else {
     projHtml = DB.projetos.slice(0, 5).map(p => {
-      const custos = totalCustoProj(p.id);
+      const receita = totalReceitaProj(p.id);
+      const custos  = totalCustoProj(p.id);
       const pct = receita ? Math.min(100, Math.round(custos / receita * 100)) : 0;
       return `
         <div style="margin-bottom:16px">
