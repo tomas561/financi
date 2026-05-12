@@ -2766,8 +2766,6 @@ function editarFornecedor(id) {
   document.getElementById('forn-nome').value = f.nome;
   document.getElementById('forn-doc').value = f.doc || '';
   document.getElementById('forn-obs').value = f.obs || '';
-  populateSelectEl('forn-categoria', DB.categorias, 'id', 'nome', '— Selecione —');
-  document.getElementById('forn-categoria').value = f.categoria || '';
   // Open directly without going through openModal reset logic
   document.getElementById('modal-fornecedor').classList.add('open');
 }
