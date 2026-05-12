@@ -21,7 +21,9 @@
       appId:             "1:550065607574:web:b6f38e996e445d1ee143b7",
       databaseURL:       "https://monosup-financi-default-rtdb.firebaseio.com",
     };
-    const DB_PATH = 'financi/dados2026';
+    const DB_PATH    = 'financi/dados2026';
+    const AUTH_PATH  = 'financi/auth';
+    const DB_SECRET  = 'MonosupFinanci@2026!DB'; // chave de acesso ao banco
     // ─────────────────────────────────────────────────────────────────────
 
     // Shared state (via window so main script can access)
@@ -66,6 +68,9 @@
         const rtdb = getDatabase(app);
         const dbRef = ref(rtdb, DB_PATH);
         console.log('🔥 Firebase app created, trying DB read...');
+        // Write auth token so read rules can verify
+        const authRef = ref(rtdb, AUTH_PATH);
+        await set(authRef, { secret: DB_SECRET });
 
         // ── Expose save function to main script ───────────────────────────
         window._cloudSave = async (data) => {
@@ -76,7 +81,7 @@
               const v = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
               window._lastSaveVer = v;
               data._v = v;
-              await set(dbRef, { payload: JSON.stringify(data), at: Date.now() });
+              await set(dbRef, { payload: JSON.stringify(data), at: Date.now(), _secret: DB_SECRET });
               window._DB_LOCAL_COUNT = data.lancamentos?.length || 0;
               setSyncStatus('ok', `☁️ Salvo — ${window._DB_LOCAL_COUNT} lançamentos`);
             } catch(e) {
